@@ -211,6 +211,7 @@ objc_object::initProtocolIsa(Class cls)
     return initClassIsa(cls);
 }
 
+//初始化isa指针
 inline void 
 objc_object::initInstanceIsa(Class cls, bool hasCxxDtor)
 {
@@ -221,14 +222,17 @@ objc_object::initInstanceIsa(Class cls, bool hasCxxDtor)
 }
 
 #pragma mark - 初始化isa指针
+//是否是nonpointer,是否有c++析构
 inline void 
 objc_object::initIsa(Class cls, bool nonpointer, bool hasCxxDtor) 
 { 
     ASSERT(!isTaggedPointer()); 
     
     if (!nonpointer) {
+        //isa指针
         isa = isa_t((uintptr_t)cls);
     } else {
+        //可以优化的isa指针 --- 位域
         ASSERT(!DisableNonpointerIsa);
         ASSERT(!cls->instancesRequireRawIsa());
 

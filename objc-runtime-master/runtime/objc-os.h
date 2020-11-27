@@ -50,6 +50,7 @@ static inline uint32_t word_align(uint32_t x) {
 static inline size_t word_align(size_t x) {
     return (x + WORD_MASK) & ~WORD_MASK;
 }
+///16字节对齐算法
 static inline size_t align16(size_t x) {
     return (x + size_t(15)) & ~size_t(15);
 }

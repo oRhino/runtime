@@ -1717,6 +1717,7 @@ callAlloc(Class cls, bool checkNil, bool allocWithZone=false)
 #if __OBJC2__
     if (slowpath(checkNil && !cls)) return nil;
     if (fastpath(!cls->ISA()->hasCustomAWZ())) {
+        //大多数不会重写allocwithzone方法
         return _objc_rootAllocWithZone(cls, nil);
     }
 #endif
