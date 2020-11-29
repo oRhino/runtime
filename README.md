@@ -80,3 +80,14 @@ _objc_rootAlloc
 callAlloc
 _objc_rootAllocWithZone
 _class_createInstanceFromZone
+
+根据成员变量计算所需开辟的内存大小.
+调用Calloc开辟内存
+关联isa关系(nonpointer做不同处理)
+
+## init方法
+什么事情也没有做,直接返回自身.
+工厂方法设计<交给子类去重写>
+
+## new
+等同于 [[alloc] init]
