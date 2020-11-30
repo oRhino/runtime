@@ -91,3 +91,70 @@ _class_createInstanceFromZone
 
 ## new
 等同于 [[alloc] init]
+
+
+## 关联对象
+1. category能否添加属性,为什么?能否添加实例变量,为什么?
+2. 关联对象的本质?
+3. 关联对象需要手动释放吗?
+4. 关联对象什么情况下会导致内存泄漏?
+
+
+category作为runtime运行时特性,是可以添加属性,但是只会生成setter/getter方法,不会添加实例变量.因为对象的内存布局在编译期间就已经确定,如果可以添加实例变量,那么已经生成的对象或者子类对象就要销毁重建,不然无法使用.
+但是我们可以通过添加关联属性的方式来为对象添加实例变量.
+```
+//设置关联值 传入nil表示删除
+void
+objc_setAssociatedObject(id _Nonnull object, const void * _Nonnull key,
+                         id _Nullable value, objc_AssociationPolicy policy)
+
+//获取关联值
+id _Nullable
+objc_getAssociatedObject(id _Nonnull object, const void * _Nonnull key)       
+
+//删除一个对象的所有关联值
+void
+objc_removeAssociatedObjects(id _Nonnull object)
+
+
+```
+
+AssociationsManager管理一个全局唯一的AssociationsHashMap,AssociationsHashMap是一张哈希表,包含所有对象的关联对象表,key为对象的地址<DisguisedPtr对对象进行包装>,value为ObjectAssociationMap,即一个对象的所有关联对象的一张表.ObjectAssociationMap 可以根据创建关联对象的key未作为键,去查找对应的关联对象实体ObjcAssociation,ObjcAssociation就包含我们关联属性的内存策略和存储的值.
+```
+/// 一个对象的表 属性名 :关联对象实体
+///key 是 const void * value 是 ObjcAssociation 的哈希表
+typedef DenseMap<const void *, ObjcAssociation> ObjectAssociationMap;
+
+/// 对象的地址:对象的所有关联对象表
+//key 是 DisguisedPtr<objc_object> value 是 ObjectAssociationMap 的哈希表
+//DisguisedPtr<objc_object> 可理解为把 objc_object 地址伪装为一个整数。
+typedef DenseMap<DisguisedPtr<objc_object>, ObjectAssociationMap> AssociationsHashMap;
+```
+
+
+关联对象的API内部会根据传入的内存策略对关联对象的内存进行管理,比如设置值时,如果是retain,会释放旧值,retain新值;在对象销毁的时候,会根据对象是否有关联对象标志位(nonpointer才有,其它为true),查找对象对应的关联属性表,进行释放.无需手动管理.
+所以如果我们传入的内存策略和引用关系造成循环引用,就会导致内存泄漏.
+
+```
+// 在SETTER 时使用：与上面的 acquireValue 函数对应，释放旧值 value
+inline void releaseHeldValue() {
+    if (_value && (_policy & OBJC_ASSOCIATION_SETTER_RETAIN)) {
+        // release 减少引用计数
+        objc_release(_value);
+    }
+}
+// 在 GETTER 时使用：根据关联策略判断是否对关联值进行 retain 操作
+inline void retainReturnedValue() {
+    if (_value && (_policy & OBJC_ASSOCIATION_GETTER_RETAIN)) {
+        objc_retain(_value);
+    }
+}
+// 在 GETTER 时使用：判断是否需要放进自动释放池
+inline id autoreleaseReturnedValue() {
+    if (slowpath(_value && (_policy & OBJC_ASSOCIATION_GETTER_AUTORELEASE))) {
+        return objc_autorelease(_value);
+    }
+    return _value;
+}
+```
+

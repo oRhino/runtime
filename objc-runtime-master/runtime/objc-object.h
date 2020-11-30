@@ -344,30 +344,32 @@ objc_object::changeIsa(Class newCls)
     }
 }
 
-
+//是否有关联对象
 inline bool
 objc_object::hasAssociatedObjects()
 {
-    if (isTaggedPointer()) return true;
-    if (isa.nonpointer) return isa.has_assoc;
-    return true;
+    if (isTaggedPointer()) return true; //tagpointer
+    if (isa.nonpointer) return isa.has_assoc; //nonpointer,获取位域
+    return true; //非优化过的isa 直接返回true
 }
 
-
+//标记有关联对象
 inline void
 objc_object::setHasAssociatedObjects()
 {
-    if (isTaggedPointer()) return;
+    if (isTaggedPointer()) return; //tagpointer
 
  retry:
     isa_t oldisa = LoadExclusive(&isa.bits);
     isa_t newisa = oldisa;
     if (!newisa.nonpointer  ||  newisa.has_assoc) {
+        //非nonpointer 或者已经标记有关联对象,返回
         ClearExclusive(&isa.bits);
         return;
     }
+    //nonpointer isa设置为true
     newisa.has_assoc = true;
-    if (!StoreExclusive(&isa.bits, oldisa.bits, newisa.bits)) goto retry;
+    if (!StoreExclusive(&isa.bits, oldisa.bits, newisa.bits)) goto retry; //设置失败,继续尝试设置
 }
 
 

@@ -996,20 +996,20 @@ static inline bool operator != (DisguisedPtr<objc_object> lhs, id rhs) {
 }
 
 
-// Storage for a thread-safe chained hook function.
-// get() returns the value for calling.
+// Storage for a thread-safe chained hook function. 用于线程安全的链钩函数的存储
+// get() returns the value for calling. 返回调用值
 // set() installs a new function and returns the old one for chaining.
 // More precisely, set() writes the old value to a variable supplied by
 // the caller. get() and set() use appropriate barriers so that the
 // old value is safely written to the variable before the new value is
-// called to use it.
+// called to use it. 安装一个新函数并返回旧函数进行链接
 //
 // T1: store to old variable; store-release to hook variable
 // T2: load-acquire from hook variable; call it; called hook loads old variable
 
 template <typename Fn>
 class ChainedHookFunction {
-    std::atomic<Fn> hook{nil};
+    std::atomic<Fn> hook{nil}; //函数指针
 
 public:
     constexpr ChainedHookFunction(Fn f) : hook{f} { };

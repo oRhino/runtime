@@ -1667,7 +1667,7 @@ struct objc_class : objc_object {
         return data()->ro()->flags & RO_IS_ARC;
     }
 
-
+    //禁止使用关联值
     bool forbidsAssociatedObjects() {
         return (data()->flags & RW_FORBIDS_ASSOCIATED_OBJECTS);
     }

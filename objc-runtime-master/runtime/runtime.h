@@ -1634,6 +1634,7 @@ objc_storeWeak(id _Nullable * _Nonnull location, id _Nullable obj)
  * Policies related to associative references.
  * These are options to objc_setAssociatedObject()
  */
+//关联策略
 typedef OBJC_ENUM(uintptr_t, objc_AssociationPolicy) {
     OBJC_ASSOCIATION_ASSIGN = 0,           /**< Specifies a weak reference to the associated object. */
     OBJC_ASSOCIATION_RETAIN_NONATOMIC = 1, /**< Specifies a strong reference to the associated object. 
@@ -1657,6 +1658,11 @@ typedef OBJC_ENUM(uintptr_t, objc_AssociationPolicy) {
  * @see objc_setAssociatedObject
  * @see objc_removeAssociatedObjects
  */
+//给指定的对象设置关联值
+//第一个参数 对象
+//第二个参数 标识 关联对象的key
+//第三个对象 属性值
+//第四个对象 关联策略
 OBJC_EXPORT void
 objc_setAssociatedObject(id _Nonnull object, const void * _Nonnull key,
                          id _Nullable value, objc_AssociationPolicy policy)

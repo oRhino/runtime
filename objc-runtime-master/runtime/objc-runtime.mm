@@ -655,13 +655,16 @@ _base_objc_setAssociatedObject(id object, const void *key, id value, objc_Associ
   _object_set_associative_reference(object, key, value, policy);
 }
 
+//ChainedHookFunction是一个函数指针
 static ChainedHookFunction<objc_hook_setAssociatedObject> SetAssocHook{_base_objc_setAssociatedObject};
 
+///对外接口: 接口模式 对外的接口不变,内部的逻辑变化不影响外部的调用
 void
 objc_setHook_setAssociatedObject(objc_hook_setAssociatedObject _Nonnull newValue,
                                  objc_hook_setAssociatedObject _Nullable * _Nonnull outOldValue) {
-    SetAssocHook.set(newValue, outOldValue);
+    SetAssocHook.set(newValue, outOldValue); //等同于调用 _base_objc_setAssociatedObject
 }
+
 
 void
 objc_setAssociatedObject(id object, const void *key, id value, objc_AssociationPolicy policy)
@@ -669,9 +672,10 @@ objc_setAssociatedObject(id object, const void *key, id value, objc_AssociationP
     SetAssocHook.get()(object, key, value, policy);
 }
 
-
+// 删除关联对象
 void objc_removeAssociatedObjects(id object) 
 {
+    // 对象不为空，且 has_assoc 标记为 true，表示该对象有关联对象
     if (object && object->hasAssociatedObjects()) {
         _object_remove_assocations(object);
     }

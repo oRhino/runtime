@@ -260,17 +260,20 @@ public:
   }
 
   // Inserts key,value pair into the map if the key isn't already in the map.
+  // 如果 key value 键值对在 map 中不存在则把它们插入 map
   // The value is constructed in-place if the key is not in the map, otherwise
   // it is not moved.
   template <typename... Ts>
   std::pair<iterator, bool> try_emplace(const KeyT &Key, Ts &&... Args) {
     BucketT *TheBucket;
+      // 已存在
     if (LookupBucketFor(Key, TheBucket))
       return std::make_pair(
                makeIterator(TheBucket, getBucketsEnd(), true),
                false); // Already in map.
 
     // Otherwise, insert the new element.
+    // 不存在，则插入新元素
     TheBucket = InsertIntoBucket(TheBucket, Key, std::forward<Ts>(Args)...);
     return std::make_pair(
              makeIterator(TheBucket, getBucketsEnd(), true),
