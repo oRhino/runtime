@@ -255,9 +255,22 @@ ClearExclusive(uintptr_t *dst __unused)
 /* Use this for functions that are intended to be breakpoint hooks.
    If you do not, the compiler may optimize them away.
    BREAKPOINT_FUNCTION( void stop_on_error(void) ); */
+// 如果我们要对某个函数做 breakpoint hook，则需要用该宏定义声明一下。
+// 如果我们不这样做的话，编译器可能会优化它们。
+// 例如：BREAKPOINT_FUNCTION( void stop_on_error(void) );
 #   define BREAKPOINT_FUNCTION(prototype)                             \
     OBJC_EXTERN __attribute__((noinline, used, visibility("hidden"))) \
     prototype { asm(""); }
+
+//__attribute__((used)) 的作用：
+
+//用于告诉编译器在目标文件中保留一个 静态函数 或者 静态变量，即使它没有被引用。
+//标记为 attribute__((used)) 的函数被标记在目标文件中，以避免 链接器 删除未使用的节。
+//静态变量 也可以标记为 used，方法是使用 attribute((used))。
+//使用 used 字段，即使没有任何引用，在 Release 下也不会被优化。
+//
+
+
 
 #elif TARGET_OS_WIN32
 

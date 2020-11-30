@@ -738,6 +738,9 @@ objc_object::rootAutorelease()
 }
 
 #pragma mark - retainCount实现
+//疑问:
+//1.为什么有的NSString的retainCount是很大的数 (TaggedPointer)
+//2.为什么release之后仍然为1,不是0
 inline uintptr_t 
 objc_object::rootRetainCount()
 {
