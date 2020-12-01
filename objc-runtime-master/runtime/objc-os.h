@@ -717,6 +717,13 @@ template <bool Debug> class recursive_mutex_tt;
 #   define LOCKDEBUG 0
 #endif
 
+//spinlock_t实际上是一个 uint32_t 类型的非公平的自旋锁，os_unfair_lock
+//所谓非公平是指，获得锁的顺序和申请锁的顺序无关，也就是说，第一个申请锁的线程有可能会是最后一个获得该锁，
+//或者是刚获得锁的线程会再次立刻获得该锁，造成其它线程忙等（busy-wait）。
+//同时，os_unfair_lock 在 _os_unfair_lock_opaque 记录了获取它的线程信息，只有获得该锁的线程才能够解开这把锁。
+
+//os_unfair_lock 的实现，apple 并未公开，大体上应该是操作 _os_unfair_lock_opaque 这个 uint32_t 的值，当大于 0 时，锁可用，当等于或小于 0 时，表示锁已经被其它线程获取且还没有解锁，当前线程再获取这把锁，就要被等待（或者直接阻塞，直到能获取到锁）。
+
 using spinlock_t = mutex_tt<LOCKDEBUG>;
 using mutex_t = mutex_tt<LOCKDEBUG>;
 using monitor_t = monitor_tt<LOCKDEBUG>;

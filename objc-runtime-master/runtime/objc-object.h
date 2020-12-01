@@ -426,11 +426,12 @@ objc_object::clearDeallocating()
 {
     if (slowpath(!isa.nonpointer)) {
         // Slow path for raw pointer isa.
-        sidetable_clearDeallocating(); //非指针型isa,清除引用计数表中的内容
+        sidetable_clearDeallocating(); //// 对象的 isa 是原始指针类型时
     }
     else if (slowpath(isa.weakly_referenced  ||  isa.has_sidetable_rc)) {
         // Slow path for non-pointer isa with weak refs and/or side table data.
-        clearDeallocating_slow(); //处理弱引用,引用计数表
+        // 对象的 isa 是优化后的 isa_t 时
+        clearDeallocating_slow();
     }
 
     assert(!sidetable_present());
@@ -442,16 +443,23 @@ objc_object::rootDealloc()
 {
     if (isTaggedPointer()) return;  // fixme necessary?
     //判断是否可以直接释放
+    // 1. isa 是非指针类型，即优化的 ias_t 类型，除了类对象地址包含更多的信息
+    // 2. 没有弱引用
+    // 3. 没有关联对象
+    // 4. 没有 C++ 析构函数
+    // 5. SideTable 中不存在引用计数即引用计数全部放在 extra_rc 中
+
     if (fastpath(isa.nonpointer  &&  
                  !isa.weakly_referenced  &&  
                  !isa.has_assoc  &&  
                  !isa.has_cxx_dtor  &&  
                  !isa.has_sidetable_rc))
-    { //nonpointer,没有弱引用,没有关联对象,没有cxx析构,没有引用计数表
+    { //首先是nonpointer,没有弱引用,没有关联对象,没有cxx析构,没有引用计数表
         assert(!sidetable_present());
         free(this);
     } 
     else {
+        //慢速释放
         object_dispose((id)this);
     }
 }

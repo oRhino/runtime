@@ -7765,17 +7765,21 @@ object_copyFromZone(id oldObj, size_t extraBytes, void *zone)
 * Calls ARC ivar cleanup.
 * Removes associative references.
 * Returns `obj`. Does nothing if `obj` is nil.
+ 销毁实例而不是释放内存，内存释放是下面的 free 函数。调用 C++ 析构函数。调用 ARC ivar 清理。删除关联引用。返回 obj。如果 obj 为 nil，则不执行任何操作。
 **********************************************************************/
 void *objc_destructInstance(id obj) 
 {
     if (obj) {
         // Read all of the flags at once for performance.
+        // 一次读取所有标志以提高性能。
         bool cxx = obj->hasCxxDtor();
         bool assoc = obj->hasAssociatedObjects();
 
         // This order is important.
+        // 此顺序很重要。
         if (cxx) object_cxxDestruct(obj); //调用cxx析构
-        if (assoc) _object_remove_assocations(obj); //删除关联对象
+        // 移除所有的关联对象，并将其自身从 Association Manager 的 map 中移除
+        if (assoc) _object_remove_assocations(obj); 
         obj->clearDeallocating();
     }
 
@@ -7788,12 +7792,14 @@ void *objc_destructInstance(id obj)
 * fixme
 * Locking: none
 **********************************************************************/
+#pragma mark - 慢速释放
 id 
 object_dispose(id obj)
 {
     if (!obj) return nil;
-    
-    objc_destructInstance(obj);    
+    // free 前的清理工作
+    objc_destructInstance(obj);
+    // 释放
     free(obj);
 
     return nil;

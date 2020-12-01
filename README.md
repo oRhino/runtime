@@ -176,3 +176,17 @@ inline id autoreleaseReturnedValue() {
 那么管理的对象什么时候释放呢? 如果是@autoreleasepool {}包起来的,起始会调用autoreleasepoolpush,}结束就会调用autoreleasepoolpop,还有一种情况,它会监听kCFRunLoopBeforeWaiting(准备进入休眠)事件,调用autoreleasepoolpop释放一次,然后autoreleasepoolpush.
 
 
+那些对象会放入到AutoreleasePool中?
+ARC下:
+1. __autoreleasing修饰的
+```
+__autoreleasing id obj = [NSObject new];
+```
+2. 不是alloc、new、copy、mutable Copy开头的方法创建对象的
+
+```
+for (int i = 0; i < 200; ++i) {
+    NSString *str = [NSString stringWithFormat:@"Test:%d", i];
+    //这里注意不能是tagpointer对象<栈区>
+}
+```

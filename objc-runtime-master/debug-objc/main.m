@@ -114,7 +114,13 @@ int main(int argc, const char * argv[]) {
 //        NSLog(@"%@",dowork);
 //        dowork();
         
+        
         Student *s = [[Student alloc]init];
+        NSLog(@"%@,%p",s,&s);//0x100754a00>,0x7ffeefbff508
+        
+        __weak id obj = s;
+        NSLog(@"%@,%p",obj,&obj);
+
         
         [s eat];
         
