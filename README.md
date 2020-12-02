@@ -229,3 +229,6 @@ MRC:（MannulReference Counting）手动引用计数
  objc_storeStrong(&people,nil);
  
 ```
+在调用 objc_autoreleaseReturnValue() 时，会在栈上查询 return address 以确定 return value 是否会被直接传给 objc_retainAutoreleasedReturnValue()。 如果没传，说明返回值不能直接从提供方发送给接收方，这时就会调用 autorelease。反之，如果返回值能顺利的从提供方传送给接收方，那么就会直接跳过 autorelease 过程，并且修改 return address 以跳过 objc_retainAutoreleasedReturnValue()过程，这样就跳过了整个 autorelease 和 retain的过程。
+
+即当返回值被返回之后，紧接着就需要被 retain 的时候，没有必要进行 autorelease + retain，直接什么都不要做就好了。
