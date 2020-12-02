@@ -190,3 +190,42 @@ for (int i = 0; i < 200; ++i) {
     //这里注意不能是tagpointer对象<栈区>
 }
 ```
+## ARC/MRC
+
+ARC: Automatic Reference Counting 自动引用计数
+MRC:（MannulReference Counting）手动引用计数
+
+### 引用计数原则:
+
+生成并持有对象    alloc/new/copy/mutableCopy等    +1
+持有对象    retain    +1
+释放对象    release    -1
+废弃对象    dealloc    -
+
+### 本质:编译器 + runtime共同协作的结果
+
+### 工作原理: 编译器分析源码中每个对象的生命周期,基于对象的生命周期,添加相应的引用计数操作代码
+
+### ARC优化:
+1. ARC优化器会移除多余的retain和release语句,减少重复调用<合并对称的引用计数操作,比如将+1/-1/+1/-1直接置为0>
+2. 巧妙的跳过某些情况下 autorelease机制的调用.
+ (当方法全部基于ARC实现时,在方法return的时候,ARC会调用objc_autoreleaseReturnValue 以替代MRC下的autorelease.在MRC下需要retian的位置,ARC会调用objc_retainAutoreleasedReturnValue())
+ 
+```
+ + (instancetype)createZoo{
+    return [self new];
+ }
+ 
+ People *people = [People createZoo];
+ 
+ //结果
+ + (instancetype)createZoo{
+    id tmp = [self new];
+    return objc_autoreleaseReturnValue(tmp);
+ }
+ 
+ id tmp =  objc_retainAutoreleasedReturnValue([People createZoo]);
+ People *people = tmp;
+ objc_storeStrong(&people,nil);
+ 
+```
