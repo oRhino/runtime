@@ -51,6 +51,7 @@ DISPATCH_ASSUME_NONNULL_BEGIN
  * management by the Blocks runtime and in leaks checking by the static
  * analyzer, and enables them to be added to Cocoa collections.
  * See <os/object.h> for details.
+  默认情况下，使用 Objective-C 编译器进行构建时，调度对象被声明为 Objective-C 类型。这使他们可以参与 ARC，通过 Blocks 运行时参与 RR（retain/release）管理以及通过静态分析器参与泄漏检查，并将它们添加到 Cocoa 集合（NSMutableArray、NSMutableDictionary...）中。详细信息可参考 <os/object.h>
  */
 OS_OBJECT_DECL_CLASS(dispatch_object);
 
@@ -75,22 +76,22 @@ _dispatch_object_validate(dispatch_object_t object)
 #elif defined(__cplusplus) && !defined(__DISPATCH_BUILDING_DISPATCH__)
 /*
  * Dispatch objects are NOT C++ objects. Nevertheless, we can at least keep C++
- * aware of type compatibility.
+ * aware of type compatibility. 调度对象不是 C++ 对象。尽管如此，我们至少可以使 C++ 知道类型兼容性
  */
 typedef struct dispatch_object_s {
 private:
-	dispatch_object_s();
-	~dispatch_object_s();
-	dispatch_object_s(const dispatch_object_s &);
-	void operator=(const dispatch_object_s &);
-} *dispatch_object_t;
+	dispatch_object_s(); // 构造函数
+	~dispatch_object_s(); // 析构函数
+	dispatch_object_s(const dispatch_object_s &); // 复制构造函数
+	void operator=(const dispatch_object_s &); // 赋值操作符
+} *dispatch_object_t; // dispatch_object_t 是指向 dispatch_object_s 结构体的指针。
 #define DISPATCH_DECL(name) \
 		typedef struct name##_s : public dispatch_object_s {} *name##_t
 #define DISPATCH_DECL_SUBCLASS(name, base) \
 		typedef struct name##_s : public base##_s {} *name##_t
 #define DISPATCH_GLOBAL_OBJECT(type, object) (static_cast<type>(&(object)))
 #define DISPATCH_RETURNS_RETAINED
-#else /* Plain C */
+#else /* Plain C */ //在 C（Plain C, dispatch_object_t 不再是一个指针而是一个联合体（union）
 #ifndef __DISPATCH_BUILDING_DISPATCH__
 typedef union {
 	struct _os_object_s *_os_obj;

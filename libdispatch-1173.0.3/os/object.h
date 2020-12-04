@@ -53,8 +53,15 @@
  * This mode requires a platform with the modern Objective-C runtime, the
  * Objective-C GC compiler option to be disabled, and at least a Mac OS X 10.8
  * or iOS 6.0 deployment target.
+ *
+ * 默认情况下，在使用 Objective-C 编译器进行构建时，libSystem 对象（例如 GCD 和 XPC 对象）被声明为 Objective-C 类型，这使他们可以参与 ARC，通过 Blocks 运行时参与 RR 管理以及通过静态分析器参与泄漏检查，并将它们添加到 Cocoa 集合中。
+  注意：这需要显式取消 dispatch sources 和 xpc 连接来处理 blocks 捕获 source/connection 对象。 确保此类捕获不会形成循环引用（例如，通过将来源声明为 __weak）。
+  要选择退出此默认行为，请将 DOS_OBJECT_USE_OBJC = 0 添加到的编译器标志中即可。
+  此模式要求平台具有现代的 Objective-C runtime，要禁用的 Objective-C GC 编译器选项，以及至少 Mac OS X 10.8 或 iOS 6.0 的版本要求。
+
  */
 
+//OS_OBJECT_HAVE_OBJC_SUPPORT 仅在 macOS 10.8（i386 则是 10.12）以上或者 iOS 6.0 值为 1， 其它情况为 0。
 #ifndef OS_OBJECT_HAVE_OBJC_SUPPORT
 #if !defined(__OBJC__) || defined(__OBJC_GC__)
 #  define OS_OBJECT_HAVE_OBJC_SUPPORT 0
@@ -75,6 +82,8 @@
 #endif
 #endif // OS_OBJECT_HAVE_OBJC_SUPPORT
 
+//OS_OBJECT_USE_OBJC
+// 在 OS_OBJECT_HAVE_OBJC_SUPPORT 为 1 的情况下，在 macOS/iOS __swift__ 情况下都是 1。
 #if OS_OBJECT_HAVE_OBJC_SUPPORT
 #if defined(__swift__) && __swift__ && !OS_OBJECT_USE_OBJC
 #define OS_OBJECT_USE_OBJC 1
@@ -90,6 +99,8 @@
 #define OS_OBJECT_USE_OBJC 0
 #endif
 
+//OS_OBJECT_SWIFT3
+// 在 __swift__ 宏存在时，OS_OBJECT_SWIFT3 都为 1。
 #ifndef OS_OBJECT_SWIFT3
 #ifdef __swift__
 #define OS_OBJECT_SWIFT3 1
@@ -97,6 +108,9 @@
 #define OS_OBJECT_SWIFT3 0
 #endif // __swift__
 #endif // OS_OBJECT_SWIFT3
+
+//OS_OBJC_INDEPENDENT_CLASS
+// OS_OBJECT_USE_OBJC 为 1 的情况下，存在 objc_independent_class 属性，则 OS_OBJC_INDEPENDENT_CLASS 是： __attribute__((objc_independent_class)) 否则只是一个空的宏定义。
 
 #if OS_OBJECT_USE_OBJC
 #import <objc/NSObject.h>
@@ -106,42 +120,58 @@
 #ifndef OS_OBJC_INDEPENDENT_CLASS
 #define OS_OBJC_INDEPENDENT_CLASS
 #endif
+
+//为 name 添加一个 OS_ 前缀，如 OS_OBJECT_CLASS(object) 宏展开是 OS_object。
 #define OS_OBJECT_CLASS(name) OS_##name
+// 用于协议声明，__VA_ARGS__ 是多参的宏展开时连续按序拼接各个参。
 #define OS_OBJECT_DECL_PROTOCOL(name, ...) \
 		@protocol OS_OBJECT_CLASS(name) __VA_ARGS__ \
 		@end
+//类声明并遵循指定的协议。
 #define OS_OBJECT_CLASS_IMPLEMENTS_PROTOCOL_IMPL(name, proto) \
 		@interface name () <proto> \
 		@end
+//给 name 和 proto 添加 OS_ 前缀。
 #define OS_OBJECT_CLASS_IMPLEMENTS_PROTOCOL(name, proto) \
 		OS_OBJECT_CLASS_IMPLEMENTS_PROTOCOL_IMPL( \
 				OS_OBJECT_CLASS(name), OS_OBJECT_CLASS(proto))
+//声明一个 OS_name 的协议，然后声明指向 NSObject 遵循 OS_name 协议的类型指针的别名 name_t。
 #define OS_OBJECT_DECL_IMPL(name, ...) \
 		OS_OBJECT_DECL_PROTOCOL(name, __VA_ARGS__) \
 		typedef NSObject<OS_OBJECT_CLASS(name)> \
 				* OS_OBJC_INDEPENDENT_CLASS name##_t
+// 声明 OS_name 类型，name 后面的参表示其继承的父类，然后有一个 init 函数。
 #define OS_OBJECT_DECL_BASE(name, ...) \
 		@interface OS_OBJECT_CLASS(name) : __VA_ARGS__ \
 		- (instancetype)init OS_SWIFT_UNAVAILABLE("Unavailable in Swift"); \
 		@end
+//先声明一个类 OS_name 然后声明一个指向该类指针的别名 name_t。
 #define OS_OBJECT_DECL_IMPL_CLASS(name, ...) \
 		OS_OBJECT_DECL_BASE(name, ## __VA_ARGS__) \
 		typedef OS_OBJECT_CLASS(name) \
 				* OS_OBJC_INDEPENDENT_CLASS name##_t
+//继承自 <NSObject> 协议的 OS_name 协议。
 #define OS_OBJECT_DECL(name, ...) \
 		OS_OBJECT_DECL_IMPL(name, <NSObject>)
+// 指定 OS_name 协议继承自 OS_super 协议。
 #define OS_OBJECT_DECL_SUBCLASS(name, super) \
 		OS_OBJECT_DECL_IMPL(name, <OS_OBJECT_CLASS(super)>)
+
+// 如果存在 ns_returns_retained 属性，则 OS_OBJECT_RETURNS_RETAINED 宏定义为 __attribute__((__ns_returns_retained__))，否则仅是一个空的宏定义。
 #if __has_attribute(ns_returns_retained)
 #define OS_OBJECT_RETURNS_RETAINED __attribute__((__ns_returns_retained__))
 #else
 #define OS_OBJECT_RETURNS_RETAINED
 #endif
+
+//如果存在 ns_consumed 属性，则 OS_OBJECT_CONSUMED 宏定义为 __attribute__((__ns_consumed__))，否则仅是一个空的宏定义。
 #if __has_attribute(ns_consumed)
 #define OS_OBJECT_CONSUMED __attribute__((__ns_consumed__))
 #else
 #define OS_OBJECT_CONSUMED
 #endif
+
+//如果是 objc_arc 环境，则 OS_OBJECT_BRIDGE 宏定义为 __bridge，在 ARC 下对象类型转为 void * 时，需要加 __bridge，MRC 下则不需要。
 #if __has_feature(objc_arc)
 #define OS_OBJECT_BRIDGE __bridge
 #define OS_WARN_RESULT_NEEDS_RELEASE

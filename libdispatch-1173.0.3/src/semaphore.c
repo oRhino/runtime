@@ -289,7 +289,8 @@ dispatch_group_leave(dispatch_group_t dg)
 {
 	// The value is incremented on a 64bits wide atomic so that the carry for
 	// the -1 -> 0 transition increments the generation atomically.
-	//原子性+1
+	// 这个值在64位宽的原子上递增
+	// 原子性 + 1
 	uint64_t new_state, old_state = os_atomic_add_orig2o(dg, dg_state,
 			DISPATCH_GROUP_VALUE_INTERVAL, release);
 	uint32_t old_value = (uint32_t)(old_state & DISPATCH_GROUP_VALUE_MASK);
@@ -351,7 +352,7 @@ _dispatch_group_notify(dispatch_group_t dg, dispatch_queue_t dq,
 
 	dsn->dc_data = dq;
 	_dispatch_retain(dq);
-
+    ///应该一些链表的操作,连接上任务block
 	prev = os_mpsc_push_update_tail(os_mpsc(dg, dg_notify), dsn, do_next);
 	if (os_mpsc_push_was_empty(prev)) _dispatch_retain(dg);
 	os_mpsc_push_update_prev(os_mpsc(dg, dg_notify), prev, dsn, do_next);
@@ -374,6 +375,7 @@ void
 dispatch_group_notify_f(dispatch_group_t dg, dispatch_queue_t dq, void *ctxt,
 		dispatch_function_t func)
 {
+	//封装任务执行block为dispatch_continuation_t
 	dispatch_continuation_t dsn = _dispatch_continuation_alloc();
 	_dispatch_continuation_init_f(dsn, dq, ctxt, func, 0, DC_FLAG_CONSUME);
 	_dispatch_group_notify(dg, dq, dsn);
@@ -384,6 +386,7 @@ void
 dispatch_group_notify(dispatch_group_t dg, dispatch_queue_t dq,
 		dispatch_block_t db)
 {
+	//封装任务执行block为dispatch_continuation_t
 	dispatch_continuation_t dsn = _dispatch_continuation_alloc();
 	_dispatch_continuation_init(dsn, dq, db, 0, DC_FLAG_CONSUME);
 	_dispatch_group_notify(dg, dq, dsn);
