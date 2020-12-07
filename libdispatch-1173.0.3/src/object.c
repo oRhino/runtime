@@ -156,6 +156,7 @@ _os_object_allows_weak_reference(_os_object_t obj)
 #pragma mark -
 #pragma mark dispatch_object_t
 
+//_dispatch_object_alloc为 GCD 对象申请空间并初始化。
 void *
 _dispatch_object_alloc(const void *vtable, size_t size)
 {

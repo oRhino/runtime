@@ -76,6 +76,7 @@ _dispatch_thread_switch(dispatch_lock value, dispatch_lock_options_t flags,
 		} \
 	} while (0)
 
+//如果 DISPATCH_USE_OS_SEMAPHORE_CACHE 为真并且 policy 为 _DSEMA4_POLICY_FIFO，则调用 os_get_cached_semaphore 从缓存中取得一个 _dispatch_sema4_t 赋值给 s4，否则调用 semaphore_create 新建一个 _dispatch_sema4_t 赋值给 s4。
 void
 _dispatch_sema4_create_slow(_dispatch_sema4_t *s4, int policy)
 {
@@ -92,22 +93,26 @@ _dispatch_sema4_create_slow(_dispatch_sema4_t *s4, int policy)
 #if DISPATCH_USE_OS_SEMAPHORE_CACHE
 	if (policy == _DSEMA4_POLICY_FIFO) {
 		tmp = (_dispatch_sema4_t)os_get_cached_semaphore();
+		// 如果 s4 等于 MACH_PORT_NULL 则把 tmp 赋值给它
 		if (!os_atomic_cmpxchg(s4, MACH_PORT_NULL, tmp, relaxed)) {
+			//// 如果 s4 不为 MACH_PORT_NULL 则把它加入缓存
 			os_put_cached_semaphore((os_semaphore_t)tmp);
 		}
 		return;
 	}
 #endif
-
+    //// 新建 kern_return_t
 	kern_return_t kr = semaphore_create(mach_task_self(), &tmp, policy, 0);
 	DISPATCH_SEMAPHORE_VERIFY_KR(kr);
 
+	//// 原子赋值
 	if (!os_atomic_cmpxchg(s4, MACH_PORT_NULL, tmp, relaxed)) {
 		kr = semaphore_destroy(mach_task_self(), tmp);
 		DISPATCH_SEMAPHORE_VERIFY_KR(kr);
 	}
 }
 
+//如果 DISPATCH_USE_OS_SEMAPHORE_CACHE 为真并且 policy 为 _DSEMA4_POLICY_FIFO，则调用 os_put_cached_semaphore 把 sema 放入缓存中，否则，调用 mach 内核的 semaphore_destroy 函数进行信号量的销毁。
 void
 _dispatch_sema4_dispose_slow(_dispatch_sema4_t *sema, int policy)
 {
@@ -115,9 +120,11 @@ _dispatch_sema4_dispose_slow(_dispatch_sema4_t *sema, int policy)
 	*sema = MACH_PORT_DEAD;
 #if DISPATCH_USE_OS_SEMAPHORE_CACHE
 	if (policy == _DSEMA4_POLICY_FIFO) {
+		// 放入缓存
 		return os_put_cached_semaphore((os_semaphore_t)sema_port);
 	}
 #endif
+	//// 调用 semaphore_destroy 销毁
 	kern_return_t kr = semaphore_destroy(mach_task_self(), sema_port);
 	DISPATCH_SEMAPHORE_VERIFY_KR(kr);
 }
@@ -126,21 +133,25 @@ void
 _dispatch_sema4_signal(_dispatch_sema4_t *sema, long count)
 {
 	do {
+		//semaphore_signal能够唤醒一个在 semaphore_wait 中等待的线程。如果有多个等待线程，则根据线程优先级来唤醒。
 		kern_return_t kr = semaphore_signal(*sema);
 		DISPATCH_SEMAPHORE_VERIFY_KR(kr);
 	} while (--count);
 }
 
+//当 timeout 是 DISPATCH_TIME_FOREVER 时，do while 循环一直等下去，直到 sema 的值被修改为不等于 KERN_ABORTED。
 void
 _dispatch_sema4_wait(_dispatch_sema4_t *sema)
 {
 	kern_return_t kr;
 	do {
+		//调用了 mach 内核的信号量接口 semaphore_wait进行 wait 操作
 		kr = semaphore_wait(*sema);
 	} while (kr == KERN_ABORTED);
 	DISPATCH_SEMAPHORE_VERIFY_KR(kr);
 }
 
+//当 timeout 是一个指定的时间的话，则循环等待直到超时，或者发出了 signal 信号，sema 值被修改。
 bool
 _dispatch_sema4_timedwait(_dispatch_sema4_t *sema, dispatch_time_t timeout)
 {
@@ -151,6 +162,7 @@ _dispatch_sema4_timedwait(_dispatch_sema4_t *sema, dispatch_time_t timeout)
 		uint64_t nsec = _dispatch_timeout(timeout);
 		_timeout.tv_sec = (__typeof__(_timeout.tv_sec))(nsec / NSEC_PER_SEC);
 		_timeout.tv_nsec = (__typeof__(_timeout.tv_nsec))(nsec % NSEC_PER_SEC);
+		//调用了 mach 内核的信号量接口semaphore_timedwait 进行 wait 操作
 		kr = semaphore_timedwait(*sema, _timeout);
 	} while (unlikely(kr == KERN_ABORTED));
 
@@ -624,20 +636,15 @@ _dispatch_unfair_lock_unlock_slow(dispatch_unfair_lock_t dul, dispatch_lock cur)
 void
 _dispatch_once_wait(dispatch_once_gate_t dgo)
 {
-	//// 获取当前线程的 ID
-	dispatch_lock self = _dispatch_lock_value_for_self();
+	dispatch_lock self = _dispatch_lock_value_for_self();//// 获取当前线程的 ID
 	uintptr_t old_v, new_v;
-	//// 取出 dgl_lock
-	dispatch_lock *lock = &dgo->dgo_gate.dgl_lock;
+	dispatch_lock *lock = &dgo->dgo_gate.dgl_lock; //// 取出 dgl_lock
 	uint32_t timeout = 1;
-
-	//// 进入一个无限循环
-	for (;;) {
+	for (;;) { //无限循环
+		//os_atomic_rmw_loop一个宏定义，__VA_ARGS__ 参数表示 do while 循环里的操作。
 		os_atomic_rmw_loop(&dgo->dgo_once, old_v, new_v, relaxed, {
 			if (likely(old_v == DLOCK_ONCE_DONE)) {
-				// 当 old_v 被 _dispatch_once_mark_done 中设置为 DLOCK_ONCE_DONE
-				// ⬇️⬇️ 常规分支，dispatch_once_f 提交的函数已经执行完成，则直接结束函数执行
-
+				// 当 old_v 被 _dispatch_once_mark_done 中设置为 DLOCK_ONCE_DONE,dispatch_once_f 提交的函数已经执行完成，则直接结束函数执行
 				os_atomic_rmw_loop_give_up(return);
 			}
 #if DISPATCH_ONCE_USE_QUIESCENT_COUNTER

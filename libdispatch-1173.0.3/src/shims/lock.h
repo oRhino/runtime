@@ -104,17 +104,21 @@ _dispatch_lock_owner(dispatch_lock lock_value)
 #  error define _dispatch_lock encoding scheme for your platform here
 #endif
 
+//一个与操作
 DISPATCH_ALWAYS_INLINE
 static inline dispatch_lock
 _dispatch_lock_value_from_tid(dispatch_tid tid)
 {
+	//// #define DLOCK_OWNER_MASK   ((dispatch_lock)0xfffffffc)
 	return tid & DLOCK_OWNER_MASK;
 }
 
+///取出当前线程的 ID，用于赋值给 val（dgo_once 成员变量）。（ val 在 dispatch_once_f 提交的函数执行完成之前会赋值为线程 ID，当提交的函数执行完成后会赋值为 DLOCK_ONCE_DONE，如我们为 dispatch_once 准备的 static dispatch_once_t onceToken;，在 dispatch_once 执行前打印 onceToken 值为 0，onceToken 初始值必须为 0，否则 dispatch_once 里的 block 不会执行，当 dispatch_once 执行完成后，打印 onceToken，它的值是 -1，如果我们手动把 onceToken 修改为 0，则可以再次执行 dispatch_once 提交的 block）。
 DISPATCH_ALWAYS_INLINE
 static inline dispatch_lock
 _dispatch_lock_value_for_self(void)
 {
+	//// _dispatch_tid_self() 为取出当前线程的ID
 	return _dispatch_lock_value_from_tid(_dispatch_tid_self());
 }
 
@@ -226,19 +230,25 @@ void _dispatch_sema4_signal(_dispatch_sema4_t *sema, long count);
 void _dispatch_sema4_wait(_dispatch_sema4_t *sema);
 bool _dispatch_sema4_timedwait(_dispatch_sema4_t *sema, dispatch_time_t timeout);
 
+//如果为 NULL 的话则进行赋值。
 DISPATCH_ALWAYS_INLINE
 static inline void
 _dispatch_sema4_create(_dispatch_sema4_t *sema, int policy)
 {
+	//// #define _dispatch_sema4_is_created(sema)   (*(sema) != MACH_PORT_NULL)
+	//// 如果 sema 为 NULL，则调用 _dispatch_sema4_create_slow 为 sema 赋值
 	if (!_dispatch_sema4_is_created(sema)) {
+		// 从缓存读取或者新建
 		_dispatch_sema4_create_slow(sema, policy);
 	}
 }
 
+//
 DISPATCH_ALWAYS_INLINE
 static inline void
 _dispatch_sema4_dispose(_dispatch_sema4_t *sema, int policy)
 {
+	//// 如果 sema 存在则调用 _dispatch_sema4_dispose_slow 函数
 	if (_dispatch_sema4_is_created(sema)) {
 		_dispatch_sema4_dispose_slow(sema, policy);
 	}
@@ -437,13 +447,15 @@ _dispatch_unfair_lock_unlock(dispatch_unfair_lock_t l)
 
 #define DLOCK_GATE_UNLOCKED	((dispatch_lock)0)
 
-//DLOCK_ONCE_UNLOCKED 与 DLOCK_ONCE_DONE 对应，分别代表 dispatch_once 执行前后的标记状态。DLOCK_ONCE_UNLOCKED 用于标记 dispatch_once 还没有执行过，DLOCK_ONCE_DONE 用于标记 dispatch_once 已经执行完了。
+//DLOCK_ONCE_UNLOCKED 与 DLOCK_ONCE_DONE 对应，分别代表 dispatch_once 执行前后的标记状态。
+//DLOCK_ONCE_UNLOCKED 用于标记 dispatch_once 还没有执行过
+//DLOCK_ONCE_DONE 用于标记 dispatch_once 已经执行完了。
 
 #define DLOCK_ONCE_UNLOCKED	((uintptr_t)0)
 #define DLOCK_ONCE_DONE		(~(uintptr_t)0)
 
 //dispatch_gate_t 是指向 dispatch_gate_s 结构体的指针，dispatch_gate_s 结构体仅有一个 uint32_t 类型的成员变量 dgl_lock。
-// dispatch_once_gate_t 是指向 dispatch_once_gate_s 结构体的指针，dispatch_once_gate_s 结构体内部仅包含一个联合体。
+//dispatch_once_gate_t 是指向 dispatch_once_gate_s 结构体的指针，dispatch_once_gate_s 结构体内部仅包含一个联合体。
 
 typedef struct dispatch_gate_s {
 	dispatch_lock dgl_lock;
@@ -682,8 +694,9 @@ DISPATCH_ALWAYS_INLINE
 static inline bool
 _dispatch_once_gate_tryenter(dispatch_once_gate_t l)
 {
-	// os_atomic_cmpxchg 原子性的判断 l->dgo_once 是否等于 DLOCK_ONCE_UNLOCKED（表示值为 0），若是 0 则赋值为当前线程 id
-		// 如果 &l->dgo_once 的值为 NULL（0）则返回 YES，否则返回 NO
+	// os_atomic_cmpxchg 原子性的判断 l->dgo_once 是否等于 DLOCK_ONCE_UNLOCKED（表示值为 0）
+	// 若是 0 则赋值为当前线程 id
+	// 如果 &l->dgo_once 的值为 NULL（0）则返回 YES，否则返回 NO
 	return os_atomic_cmpxchg(&l->dgo_once, DLOCK_ONCE_UNLOCKED,
 			(uintptr_t)_dispatch_lock_value_for_self(), relaxed);
 }
@@ -699,9 +712,9 @@ _dispatch_once_gate_broadcast(dispatch_once_gate_t l)
 	dispatch_lock value_self = _dispatch_lock_value_for_self();
 	uintptr_t v;
 #if DISPATCH_ONCE_USE_QUIESCENT_COUNTER
-	v = _dispatch_once_mark_quiescing(l);
+	v = _dispatch_once_mark_quiescing(l); //正在创建
 #else
-	//// 原子性的设置 l（dgo_once 成员变量）的值为 DLOCK_ONCE_DONE，并返回 l（dgo_once 成员变量）的原始值
+	/// 原子性的设置l（dgo_once 成员变量）的值为 DLOCK_ONCE_DONE，并返回 l（dgo_once 成员变量）的原始值
 	v = _dispatch_once_mark_done(l);
 #endif
 	// 如果是单线程执行 dispatch_once 的话则 v 等于 value_self，直接 return。

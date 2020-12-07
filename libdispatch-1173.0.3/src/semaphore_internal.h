@@ -27,15 +27,37 @@
 #ifndef __DISPATCH_SEMAPHORE_INTERNAL__
 #define __DISPATCH_SEMAPHORE_INTERNAL__
 
+#pragma mark - 信号量
 struct dispatch_queue_s;
 
 DISPATCH_CLASS_DECL(semaphore, OBJECT);
 struct dispatch_semaphore_s {
 	DISPATCH_OBJECT_HEADER(semaphore);
-	long volatile dsema_value;
-	long dsema_orig;
-	_dispatch_sema4_t dsema_sema;
+	long volatile dsema_value; //信号量的当前值
+	long dsema_orig; //信号量的初始值
+	_dispatch_sema4_t dsema_sema; 信号量的结构。
 };
+
+//展开如下:
+// struct dispatch_semaphore_s {
+//     struct dispatch_object_s _as_do[0];
+//	 struct _os_object_s _as_os_obj[0];
+//
+//	 const struct dispatch_semaphore_vtable_s *do_vtable; /* must be pointer-sized */
+//
+//	 int volatile do_ref_cnt;
+//	 int volatile do_xref_cnt;
+//
+//	 struct dispatch_semaphore_s *volatile do_next;
+//	 struct dispatch_queue_s *do_targetq;
+//	 void *do_ctxt;
+//	 void *do_finalizer;
+//	long volatile dsema_value; //信号量的当前值
+//	long dsema_orig; //信号量的初始值
+//	_dispatch_sema4_t dsema_sema; 信号量的结构。
+//}
+
+
 
 /*
  * Dispatch Group State:

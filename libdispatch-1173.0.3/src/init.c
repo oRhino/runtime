@@ -1498,11 +1498,13 @@ _os_object_init(void)
 	return;
 }
 
+//申请空间，并赋值isa
 inline _os_object_t
 _os_object_alloc_realized(const void *cls, size_t size)
 {
 	_os_object_t obj;
 	dispatch_assert(size >= sizeof(struct _os_object_s));
+	//// while 循环只是为了申请空间成功，核心还是在 calloc 函数中
 	while (unlikely(!(obj = calloc(1u, size)))) {
 		_dispatch_temporary_resource_shortage();
 	}

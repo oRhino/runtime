@@ -1927,6 +1927,7 @@ _dispatch_get_root_queue(dispatch_qos_t qos, bool overcommit)
 	return &_dispatch_root_queues[2 * (qos - 1) + overcommit];
 }
 
+//从全局的根队列中取默认 QOS 的队列，当 overcommit 为 true 时取 com.apple.root.default-qos.overcommit 队列，为 false 时取 com.apple.root.default-qos 队列
 #define _dispatch_get_default_queue(overcommit) \
 		_dispatch_root_queues[DISPATCH_ROOT_QUEUE_IDX_DEFAULT_QOS + \
 				!!(overcommit)]._as_dq

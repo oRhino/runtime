@@ -25,34 +25,44 @@ long _dispatch_semaphore_signal_slow(dispatch_semaphore_t dsema);
 
 #pragma mark -
 #pragma mark dispatch_semaphore_t
+//dispatch_semaphore 是 GCD 中最常见的操作，通常用于保证资源的多线程安全性和控制任务的并发数量。其本质实际上是基于 mach 内核的信号量接口来实现的
+//dispatch_semaphore_t 是指向 dispatch_semaphore_s 结构体的指针
 
+//用初始值（long value）创建新的计数信号量。
 dispatch_semaphore_t
 dispatch_semaphore_create(long value)
 {
-	dispatch_semaphore_t dsema;
+	dispatch_semaphore_t dsema; // 指向 dispatch_semaphore_s 结构体的指针
 
 	// If the internal value is negative, then the absolute of the value is
 	// equal to the number of waiting threads. Therefore it is bogus to
 	// initialize the semaphore with a negative value.
 	if (value < 0) {
-		return DISPATCH_BAD_INPUT;
+		return DISPATCH_BAD_INPUT; // 如果 value 值小于 0，则直接返回 0
 	}
-
+    //// _dispatch_object_alloc 是为 dispatch_semaphore_s 申请空间，然后用 &OS_dispatch_semaphore_class 初始化，
+	// &OS_dispatch_semaphore_class 设置了 dispatch_semaphore_t 的相关回调函数，如销毁函数 _dispatch_semaphore_dispose 等
 	dsema = _dispatch_object_alloc(DISPATCH_VTABLE(semaphore),
 			sizeof(struct dispatch_semaphore_s));
-	dsema->do_next = DISPATCH_OBJECT_LISTLESS;
-	dsema->do_targetq = _dispatch_get_default_queue(false);
-	dsema->dsema_value = value;
+	dsema->do_next = DISPATCH_OBJECT_LISTLESS; // 表示链表的下一个节点
+	dsema->do_targetq = _dispatch_get_default_queue(false); // 目标队列（从全局的队列数组 _dispatch_root_queues 中取默认队列）
+	dsema->dsema_value = value; // 当前值（当前是初始值）
 	_dispatch_sema4_init(&dsema->dsema_sema, _DSEMA4_POLICY_FIFO);
-	dsema->dsema_orig = value;
+	dsema->dsema_orig = value; // 初始值
 	return dsema;
 }
 
+//信号量的销毁函数。
 void
 _dispatch_semaphore_dispose(dispatch_object_t dou,
 		DISPATCH_UNUSED bool *allow_free)
 {
 	dispatch_semaphore_t dsema = dou._dsema;
+
+	//// 容错判断，如果当前 dsema_value 小于 dsema_orig，表示信号量还正在使用，不能进行销毁，如下代码会导致此 crash
+	// dispatch_semaphore_t sema = dispatch_semaphore_create(1); // 创建 value = 1，orig = 1
+	// dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER); // value = 0，orig = 1
+	// sema = dispatch_semaphore_create(1); // 赋值导致原始 dispatch_semaphore_s 释放，但是此时 orig 是 1，value 是 0 则直接 crash
 
 	if (dsema->dsema_value < dsema->dsema_orig) {
 		DISPATCH_CLIENT_CRASH(dsema->dsema_orig - dsema->dsema_value,
@@ -85,23 +95,30 @@ long
 _dispatch_semaphore_signal_slow(dispatch_semaphore_t dsema)
 {
 	_dispatch_sema4_create(&dsema->dsema_sema, _DSEMA4_POLICY_FIFO);
+	////count 传 1，唤醒一条线程
 	_dispatch_sema4_signal(&dsema->dsema_sema, 1);
 	return 1;
 }
 
+//dispatch_semaphore_signal 发信号（增加）信号量。如果先前的值小于零，则此函数在返回之前唤醒等待的线程。如果线程被唤醒，此函数将返回非零值。否则，返回零。
 long
 dispatch_semaphore_signal(dispatch_semaphore_t dsema)
 {
-	long value = os_atomic_inc2o(dsema, dsema_value, release);
+	//// 原子操作 dsema 的成员变量 dsema_value 的值加 1
+	long value = os_atomic_inc2o(dsema, dsema_value, release);//对原子操作 +1 的封装。
 	if (likely(value > 0)) {
+		// 如果 value 大于 0 表示目前没有线程需要唤醒，直接 return 0
 		return 0;
 	}
+	//// 如果过度释放，导致 value 的值一直增加到 LONG_MIN（溢出），则 crash
 	if (unlikely(value == LONG_MIN)) {
 		DISPATCH_CLIENT_CRASH(value,
 				"Unbalanced call to dispatch_semaphore_signal()");
 	}
+	//// value 小于等于 0 时，表示目前有线程需要唤醒
 	return _dispatch_semaphore_signal_slow(dsema);
 }
+
 
 DISPATCH_NOINLINE
 static long
@@ -109,8 +126,9 @@ _dispatch_semaphore_wait_slow(dispatch_semaphore_t dsema,
 		dispatch_time_t timeout)
 {
 	long orig;
-
+    //// 为 &dsema->dsema_sema 赋值
 	_dispatch_sema4_create(&dsema->dsema_sema, _DSEMA4_POLICY_FIFO);
+	//// 如果 timeout 是一个特定时间的话调用 _dispatch_sema4_timedwait 进行 timeout 时间的等待
 	switch (timeout) {
 	default:
 		if (!_dispatch_sema4_timedwait(&dsema->dsema_sema, timeout)) {
@@ -118,16 +136,19 @@ _dispatch_semaphore_wait_slow(dispatch_semaphore_t dsema,
 		}
 		// Fall through and try to undo what the fast path did to
 		// dsema->dsema_value
-	case DISPATCH_TIME_NOW:
+	case DISPATCH_TIME_NOW: //如果 timeout 参数是 DISPATCH_TIME_NOW
 		orig = dsema->dsema_value;
 		while (orig < 0) {
+			//// dsema_value 加 1 抵消掉 dispatch_semaphore_wait 函数中的减 1 操作
 			if (os_atomic_cmpxchgvw2o(dsema, dsema_value, orig, orig + 1,
 					&orig, relaxed)) {
+				//// 返回超时
 				return _DSEMA4_TIMEOUT();
 			}
 		}
 		// Another thread called semaphore_signal().
 		// Fall through and drain the wakeup.
+	//// 如果 timeout 参数是 DISPATCH_TIME_FOREVER 的话调用 _dispatch_sema4_wait 一直等待，直到得到 signal 信号
 	case DISPATCH_TIME_FOREVER:
 		_dispatch_sema4_wait(&dsema->dsema_sema);
 		break;
@@ -135,13 +156,16 @@ _dispatch_semaphore_wait_slow(dispatch_semaphore_t dsema,
 	return 0;
 }
 
+//等待（减少）信号量
 long
 dispatch_semaphore_wait(dispatch_semaphore_t dsema, dispatch_time_t timeout)
 {
+	//// 原子操作 dsema 的成员变量 dsema_value 的值减 1
 	long value = os_atomic_dec2o(dsema, dsema_value, acquire);
 	if (likely(value >= 0)) {
-		return 0;
+		return 0; //// 如果减 1 后仍然大于等于 0，则直接 return
 	}
+	//// 如果小于 0，则调用 _dispatch_semaphore_wait_slow 函数进行阻塞等待
 	return _dispatch_semaphore_wait_slow(dsema, timeout);
 }
 
