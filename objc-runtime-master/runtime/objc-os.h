@@ -717,7 +717,7 @@ template <bool Debug> class recursive_mutex_tt;
 #   define LOCKDEBUG 0
 #endif
 
-//spinlock_t实际上是一个 uint32_t 类型的非公平的自旋锁，os_unfair_lock
+//spinlock_t实际上是一个 uint32_t 类型的非公平的互斥锁<过去是Osspinlock是""自旋锁"",iOS10之后进行替换为os_unfair_lock,命名未进行更换?? ,os_unfair_lock不会忙等,而是系统调用syscall,对线程进行休眠(类似于runloop ?),从这点看应该是互斥锁>，os_unfair_lock
 //所谓非公平是指，获得锁的顺序和申请锁的顺序无关，也就是说，第一个申请锁的线程有可能会是最后一个获得该锁，
 //或者是刚获得锁的线程会再次立刻获得该锁，造成其它线程忙等（busy-wait）。
 //同时，os_unfair_lock 在 _os_unfair_lock_opaque 记录了获取它的线程信息，只有获得该锁的线程才能够解开这把锁。

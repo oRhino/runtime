@@ -61,7 +61,7 @@ OS_OBJECT_DECL_CLASS(dispatch_object);
 #else // OS_OBJECT_SWIFT3
 #define DISPATCH_DECL(name) OS_OBJECT_DECL_SUBCLASS(name, dispatch_object)
 #define DISPATCH_DECL_SUBCLASS(name, base) OS_OBJECT_DECL_SUBCLASS(name, base)
-
+//把传进来的 object 的首地址取出来，然后强转为 void *, isa?
 DISPATCH_INLINE DISPATCH_ALWAYS_INLINE DISPATCH_NONNULL_ALL DISPATCH_NOTHROW
 void
 _dispatch_object_validate(dispatch_object_t object)
@@ -208,6 +208,7 @@ typedef unsigned int dispatch_qos_class_t;
  * The object to retain.
  * The result of passing NULL in this parameter is undefined.
  */
+//增加调度对象（dispatch object）的引用计数。
 API_AVAILABLE(macos(10.6), ios(4.0))
 DISPATCH_EXPORT DISPATCH_NONNULL_ALL DISPATCH_NOTHROW
 DISPATCH_SWIFT_UNAVAILABLE("Can't be used with ARC")
@@ -260,6 +261,7 @@ dispatch_release(dispatch_object_t object);
  * @result
  * The context of the object; may be NULL.
  */
+//返回应用程序定义的对象的上下文。
 API_AVAILABLE(macos(10.6), ios(4.0))
 DISPATCH_EXPORT DISPATCH_NONNULL_ALL DISPATCH_PURE DISPATCH_WARN_RESULT
 DISPATCH_NOTHROW
@@ -304,7 +306,11 @@ dispatch_set_context(dispatch_object_t object, void *_Nullable context);
  * such as freeing the object's context.
  * The context parameter passed to the finalizer function is the current
  * context of the dispatch object at the time the finalizer call is made.
+ * object 要修改的 dispatch object。在此参数中传递 NULL 的结果是未定义的。
+  finalizer 终结（finalizer）函数的指针。
+  在释放对对象的所有引用之后，将在对象的目标队列上调用调度对象的终结函数。应用程序可以使用此终结函数来释放与对象关联的任何资源，例如释放对象的上下文。传递给终结函数的 context 参数是在进行终结函数调用时调度对象的当前上下文
  */
+//为 dispatch object 设置终结（finalizer）函数。
 API_AVAILABLE(macos(10.6), ios(4.0))
 DISPATCH_EXPORT DISPATCH_NOTHROW
 void
@@ -332,7 +338,13 @@ dispatch_set_finalizer_f(dispatch_object_t object,
  * @param object
  * The object to be activated.
  * The result of passing NULL in this parameter is undefined.
+ * 调度对象（例如队列（queues）和源（sources））可以在非活动状态下创建，必须先激活处于这种状态的对象，然后才能调用与它们关联的任何块（blocks）。
+  可以使用 dispatch_set_target_queue 更改非活动对象的目标队列，一旦最初不活动的对象被激活，就不再允许更改目标队列。
+  在活动对象上调用 dispatch_activate 无效，释放非活动对象上的最后一个引用计数是未定义的。
+  object 要激活的对象。在此参数中传递 NULL 的结果是未定义的。
+
  */
+//激活指定的调度对象。
 API_AVAILABLE(macos(10.12), ios(10.0), tvos(10.0), watchos(3.0))
 DISPATCH_EXPORT DISPATCH_NONNULL_ALL DISPATCH_NOTHROW
 void
@@ -355,7 +367,12 @@ dispatch_activate(dispatch_object_t object);
  * @param object
  * The object to be suspended.
  * The result of passing NULL in this parameter is undefined.
+ * 挂起的对象将不会调用与其关联的任何块。与该对象关联的任何运行块（running block）完成之后，将发生对象的挂起。
+  对 dispatch_suspend 的调用必须与对 dispatch_resume 的调用保持平衡。
+  object 要暂停的对象。在此参数中传递 NULL 的结果是未定义的。
+
  */
+//挂起调度对象上的块。
 API_AVAILABLE(macos(10.6), ios(4.0))
 DISPATCH_EXPORT DISPATCH_NONNULL_ALL DISPATCH_NOTHROW
 void
@@ -384,7 +401,12 @@ dispatch_suspend(dispatch_object_t object);
  * @param object
  * The object to be resumed.
  * The result of passing NULL in this parameter is undefined.
+ * 可以使用 dispatch_suspend 挂起 dispatch objects，这会增加内部挂起计数。 dispatch_resume 是逆运算，它消耗暂停计数。当最后一次暂停计数被消耗时，与该对象关联的块将再次被调用。
+  出于向后兼容性的原因，在非活动且未暂停的调度源对象上的 dispatch_resume 与调用 dispatch_activate 具有相同的效果。对于新代码，首选使用 dispatch_activate。
+  如果指定的对象的挂起计数为零并且不是非活动源，则此函数将导致断言并终止进程。
+  object 要恢复的对象。在此参数中传递 NULL 的结果是未定义的。
  */
+//恢复调度对象上块的调用。
 API_AVAILABLE(macos(10.6), ios(4.0))
 DISPATCH_EXPORT DISPATCH_NONNULL_ALL DISPATCH_NOTHROW
 void
@@ -457,6 +479,7 @@ dispatch_set_qos_class_floor(dispatch_object_t object,
  * @result
  * Returns zero on success or non-zero on error (i.e. timed out).
  */
+//同步等待某个对象，或直到指定的超时时间已过。
 DISPATCH_UNAVAILABLE
 DISPATCH_EXPORT DISPATCH_NONNULL1 DISPATCH_NOTHROW
 long
@@ -493,7 +516,13 @@ dispatch_wait(void *object, dispatch_time_t timeout);
  *
  * @param notification_block
  * The block to submit when the observed object completes.
+ * 根据第一个参数的类型，映射到 dispatch_block_notify 或 dispatch_group_notify 的类型通用宏，此功能不适用于任何其他对象类型。
+  object 要观察的对象。在此参数中传递 NULL 的结果是不确定的。
+  queue 当观察对象完成时，将向其提交所提供的通知块的队列。
+  notification_block 观察对象完成时要提交的块。
+
  */
+//计划在完成指定对象的执行后将通知块提交给队列。
 DISPATCH_UNAVAILABLE
 DISPATCH_EXPORT DISPATCH_NONNULL_ALL DISPATCH_NOTHROW
 void
@@ -522,7 +551,11 @@ dispatch_notify(void *object, dispatch_object_t queue,
  * @param object
  * The object to cancel.
  * The result of passing NULL in this parameter is undefined.
+ * 根据第一个参数的类型映射到 dispatch_block_cancel 或 dispatch_source_cancel 的类型通用宏。此功能不适用于任何其他对象类型。
+ 
+  object 要取消的对象。在此参数中传递 NULL 的结果是不确定的。
  */
+// 取消指定的对象。
 DISPATCH_UNAVAILABLE
 DISPATCH_EXPORT DISPATCH_NONNULL_ALL DISPATCH_NOTHROW
 void
@@ -553,7 +586,10 @@ dispatch_cancel(void *object);
  *
  * @result
  * Non-zero if canceled and zero if not canceled.
+ * 类型通用的宏，它映射到 dispatch_block_testcancel 或 dispatch_source_testcancel，具体取决于第一个参数的类型。此功能不适用于任何其他对象类型。
+  object 要测试的对象。在此参数中传递 NULL 的结果是不确定的。
  */
+//测试指定对象是否已被取消。
 DISPATCH_UNAVAILABLE
 DISPATCH_EXPORT DISPATCH_NONNULL_ALL DISPATCH_WARN_RESULT DISPATCH_PURE
 DISPATCH_NOTHROW
@@ -589,7 +625,11 @@ dispatch_testcancel(void *object);
  *
  * @param message
  * The message to log above and beyond the introspection.
+ * 以编程方式记录有关调度对象的调试信息。默认情况下，日志输出以通知级别发送到 syslog。在库的调试版本中，日志输出发送到 /var/tmp 中的文件。可以通过 LIBDISPATCH_LOG 环境变量配置日志输出目标。
+  不建议使用此功能，以后的版本中将删除该功能。 Objective-C 调用者可以改用 debugDescription。
+
  */
+//以编程方式记录有关调度对象的调试信息。
 API_DEPRECATED("unsupported interface", macos(10.6,10.9), ios(4.0,6.0))
 DISPATCH_EXPORT DISPATCH_NONNULL2 DISPATCH_NOTHROW DISPATCH_COLD
 __attribute__((__format__(printf,2,3)))

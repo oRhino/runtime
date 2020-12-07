@@ -426,10 +426,12 @@ DISPATCH_OPTIONS(dispatch_object_flags, unsigned long,
 	DISPATCH_MACH_CHANNEL_TYPE			= DISPATCH_OBJECT_SUBTYPE(3, SOURCE),
 );
 
+//_os_object_s 结构体的第一个成员变量
 typedef struct _os_object_vtable_s {
 	_OS_OBJECT_CLASS_HEADER();
 } _os_object_vtable_s;
 
+//作为 GCD 的基类存在的，它正是 dispatch_object_s 结构体的“父类”
 typedef struct _os_object_s {
 	_OS_OBJECT_HEADER(
 	const _os_object_vtable_s *os_obj_isa,
@@ -437,6 +439,14 @@ typedef struct _os_object_s {
 	os_obj_xref_cnt);
 } _os_object_s;
 
+// 把 _OS_OBJECT_HEADER 展开则是:
+/*
+typedef struct _os_object_s {
+	const _os_object_vtable_s *os_obj_isa; //_vtable_  C++ 中的虚函数表...
+	int volatile os_obj_ref_cnt; // 引用计数
+	int volatile os_obj_xref_cnt; // 外部引用计数
+} _os_object_s;
+*/
 #if OS_OBJECT_HAVE_OBJC1
 #define OS_OBJECT_STRUCT_HEADER(x) \
 	_OS_OBJECT_HEADER(\
@@ -480,6 +490,25 @@ DISPATCH_CLASS_DECL_BARE(object, OBJECT);
 struct dispatch_object_s {
 	_DISPATCH_OBJECT_HEADER(object);
 };
+
+// struct dispatch_object_s {
+//	 struct _os_object_s _as_os_obj[0]; // 长度为 0 的数组
+//
+//	 // _os_object_s 是仅包含下面三个成员变量的结构体，同时它也是 GCD 中所有“类”的基类，大概可以理解为 OC 中的 NSObject
+//	 // const _os_object_vtable_s *os_obj_isa;
+//	 // int volatile os_obj_ref_cnt;
+//	 // int volatile os_obj_xref_cnt;
+//
+//	 const struct dispatch_object_vtable_s *do_vtable; /* must be pointer-sized */ // do_vtable 包含了对象类型和 dispatch_object_s 的操作函数
+//	 int volatile do_ref_cnt; // 引用计数（do 应该是 Dispatch Object 的首字母，上面 _os_object_s 内使用的是 os_obj_ref_cnt）
+//	 int volatile do_xref_cnt; // 外部引用计数，两者都为 0 时才会释放对象内存
+//
+//	 struct dispatch_object_s *volatile do_next; // do_next 表示链表的 next，（下一个 dispatch_object_s）
+//	 struct dispatch_queue_s *do_targetq; // 目标队列，（表示当前任务要在这个队列运行，待验证）
+//	 void *do_ctxt; // 上下文，即运行任务（其实是一个函数）的参数
+//	 void *do_finalizer; // 最终销毁时调用的函数
+// };
+
 
 DISPATCH_COLD
 size_t _dispatch_object_debug_attr(dispatch_object_t dou, char* buf,

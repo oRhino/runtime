@@ -76,11 +76,11 @@ enum {
 /*!
  * @function dispatch_time
  *
- * @abstract
- * Create a dispatch_time_t relative to the current value of the default or
+ * @abstract 相对于默认时钟或 wall time clock（墙上时钟）的当前值，创建一个 dispatch_time_t，或修改现有的 dispatch_time_t。
+ * Create a dispatch_time _t relative to the current value of the default or
  * wall time clock, or modify an existing dispatch_time_t.
  *
- * @discussion
+ * @discussion 在 Apple 平台上，默认时钟基于 mach_absolute_time。
  * On Apple platforms, the default clock is based on mach_absolute_time().
  *
  * @param when
@@ -90,8 +90,9 @@ enum {
  * dispatch_time() will use the value returned by gettimeofday(3).
  * dispatch_time(DISPATCH_WALLTIME_NOW, delta) is equivalent to
  * dispatch_walltime(NULL, delta).
+ * 可选的 dispatch_time_t，用于添加纳秒。如果传递了 DISPATCH_TIME_NOW，则 dispatch_time 将使用默认时钟（该时钟基于 Apple 平台上的 mach_absolute_time）。如果使用 DISPATCH_WALLTIME_NOW，则 dispatch_time 将使用 gettimeofday(3) 返回的值。 dispatch_time(DISPATCH_WALLTIME_NOW，delta) 等效于 dispatch_walltime(NULL，delta)。
  *
- * @param delta
+ * @param delta 纳秒级添加。
  * Nanoseconds to add.
  *
  * @result
@@ -105,10 +106,10 @@ dispatch_time(dispatch_time_t when, int64_t delta);
 /*!
  * @function dispatch_walltime
  *
- * @abstract
+ * @abstract 使用壁钟（wall clock）创建一个 dispatch_time_t
  * Create a dispatch_time_t using the wall clock.
  *
- * @discussion
+ * @discussion 在 macOS 上，wall clock 基于 gettimeofday(3)。
  * On Mac OS X the wall clock is based on gettimeofday(3).
  *
  * @param when
@@ -116,6 +117,8 @@ dispatch_time(dispatch_time_t when, int64_t delta);
  * dispatch_walltime() will use the result of gettimeofday(3).
  * dispatch_walltime(NULL, delta) returns the same value as
  * dispatch_time(DISPATCH_WALLTIME_NOW, delta).
+ * 要添加时间的结构 timespec。如果传递了 NULL，则 dispatch_walltime 将使用 gettimeofday(3) 的结果。dispatch_walltime(NULL，delta) 返回与 dispatch_time(DISPATCH_WALLTIME_NOW，delta) 相同的值。
+
  *
  * @param delta
  * Nanoseconds to add.

@@ -45,16 +45,21 @@ StripedMap<spinlock_t> CppObjectLocks;
 
 #define MUTABLE_COPY 2
 
+
+/// 获取属性
+/// @param offset 偏移位置
+/// @param atomic 是否是atomic
 id objc_getProperty(id self, SEL _cmd, ptrdiff_t offset, BOOL atomic) {
-    if (offset == 0) {
+    if (offset == 0) { //isa
         return object_getClass(self);
     }
 
     // Retain release world
     id *slot = (id*) ((char*)self + offset);
-    if (!atomic) return *slot;
+    if (!atomic) return *slot; //nonatomic
         
     // Atomic retain release world
+    //atomic进行加锁
     spinlock_t& slotlock = PropertyLocks[slot];
     slotlock.lock();
     id value = objc_retain(*slot);
@@ -65,31 +70,44 @@ id objc_getProperty(id self, SEL _cmd, ptrdiff_t offset, BOOL atomic) {
 }
 
 
+/// 设置属性
+/// @param newValue 新值
+/// @param offset 属性的偏移
+/// @param atomic 是否是atomic
+/// @param copy 是否copy
+/// @param mutableCopy 是否mutableCopy
 static inline void reallySetProperty(id self, SEL _cmd, id newValue, ptrdiff_t offset, bool atomic, bool copy, bool mutableCopy) __attribute__((always_inline));
 
 static inline void reallySetProperty(id self, SEL _cmd, id newValue, ptrdiff_t offset, bool atomic, bool copy, bool mutableCopy)
 {
-    if (offset == 0) {
+    if (offset == 0) { //第一个成员变量 ?  isa
         object_setClass(self, newValue);
         return;
     }
 
     id oldValue;
+    //内存偏移
     id *slot = (id*) ((char*)self + offset);
 
     if (copy) {
+        //copy 调用copyWithZone
         newValue = [newValue copyWithZone:nil];
     } else if (mutableCopy) {
+        //mutableCopy调用mutableCopyWithZone
         newValue = [newValue mutableCopyWithZone:nil];
     } else {
+        //不copy,mutableCopy,判断旧值和新值是否相等,相等直接return
         if (*slot == newValue) return;
+        //retain新值
         newValue = objc_retain(newValue);
     }
 
     if (!atomic) {
+        //nonatomic 直接赋值,release旧值,新值上面已经retain,或者copy/mutableCopy了.
         oldValue = *slot;
         *slot = newValue;
     } else {
+        //atomic 本质是os_unfair_lock,会加锁/解锁
         spinlock_t& slotlock = PropertyLocks[slot];
         slotlock.lock();
         oldValue = *slot;

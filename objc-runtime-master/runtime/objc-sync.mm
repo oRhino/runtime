@@ -29,12 +29,12 @@
 // in time, keep them on a single list.
 //
 
-
+#pragma mark - @synchonized
 typedef struct alignas(CacheLineSize) SyncData {
-    struct (SyncData)* nextData; //链表?
+    struct SyncData* nextData; //链表?
     DisguisedPtr<objc_object> object; //传入的对象
     int32_t threadCount;  // number of THREADS using this block 使用这个block的线程个数
-    recursive_mutex_t mutex; //递归锁
+    recursive_mutex_t mutex; //递归锁 os_unfair_recursive_lock
 } SyncData;
 
 typedef struct {

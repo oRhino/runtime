@@ -437,8 +437,13 @@ _dispatch_unfair_lock_unlock(dispatch_unfair_lock_t l)
 
 #define DLOCK_GATE_UNLOCKED	((dispatch_lock)0)
 
+//DLOCK_ONCE_UNLOCKED 与 DLOCK_ONCE_DONE 对应，分别代表 dispatch_once 执行前后的标记状态。DLOCK_ONCE_UNLOCKED 用于标记 dispatch_once 还没有执行过，DLOCK_ONCE_DONE 用于标记 dispatch_once 已经执行完了。
+
 #define DLOCK_ONCE_UNLOCKED	((uintptr_t)0)
 #define DLOCK_ONCE_DONE		(~(uintptr_t)0)
+
+//dispatch_gate_t 是指向 dispatch_gate_s 结构体的指针，dispatch_gate_s 结构体仅有一个 uint32_t 类型的成员变量 dgl_lock。
+// dispatch_once_gate_t 是指向 dispatch_once_gate_s 结构体的指针，dispatch_once_gate_s 结构体内部仅包含一个联合体。
 
 typedef struct dispatch_gate_s {
 	dispatch_lock dgl_lock;
@@ -647,6 +652,7 @@ DISPATCH_ALWAYS_INLINE
 static inline uintptr_t
 _dispatch_once_mark_done(dispatch_once_gate_t dgo)
 {
+	//原子性的设置 &dgo->dgo_once 的值为 DLOCK_ONCE_DONE，同时返回 &dgo->dgo_once 的旧值，此时，dispatch_once 即被标记为已执行过了。
 	return os_atomic_xchg(&dgo->dgo_once, DLOCK_ONCE_DONE, release);
 }
 #endif // DISPATCH_ONCE_USE_QUIESCENT_COUNTER
@@ -676,23 +682,32 @@ DISPATCH_ALWAYS_INLINE
 static inline bool
 _dispatch_once_gate_tryenter(dispatch_once_gate_t l)
 {
-	//通过底层os_atomic_cmpxchg方法进行对比，如果比较没有问题，则进行加锁，即任务的标识符置为DLOCK_ONCE_UNLOCKED
+	// os_atomic_cmpxchg 原子性的判断 l->dgo_once 是否等于 DLOCK_ONCE_UNLOCKED（表示值为 0），若是 0 则赋值为当前线程 id
+		// 如果 &l->dgo_once 的值为 NULL（0）则返回 YES，否则返回 NO
 	return os_atomic_cmpxchg(&l->dgo_once, DLOCK_ONCE_UNLOCKED,
 			(uintptr_t)_dispatch_lock_value_for_self(), relaxed);
 }
 
+/*
+ 首先把 l（dgo_once 成员变量）原子性的赋值为 DLOCK_ONCE_DONE，表示提交的函数仅全局性的执行一次已经执行过了，然后是一句优化调用，如果 v 和 value_self 相等的话，表示目前是单线程在执行 dispatch_once_f 函数，提交的函数执行完了，但是不存在需要唤醒的阻塞线程，可以直接 return 了，如果不等的话则表示也有另外的线程在 dispatch_once_f 提交的函数正在执行的时候进来了，且这个 v 的值就是第二条线程的 ID，那么就需要执行 _dispatch_gate_broadcast_slow 来唤醒阻塞的线程。
+ */
 DISPATCH_ALWAYS_INLINE
 static inline void
 _dispatch_once_gate_broadcast(dispatch_once_gate_t l)
 {
+	//// 取出当前线程的 ID
 	dispatch_lock value_self = _dispatch_lock_value_for_self();
 	uintptr_t v;
 #if DISPATCH_ONCE_USE_QUIESCENT_COUNTER
 	v = _dispatch_once_mark_quiescing(l);
 #else
+	//// 原子性的设置 l（dgo_once 成员变量）的值为 DLOCK_ONCE_DONE，并返回 l（dgo_once 成员变量）的原始值
 	v = _dispatch_once_mark_done(l);
 #endif
+	// 如果是单线程执行 dispatch_once 的话则 v 等于 value_self，直接 return。
+	// 如果是多线程执行 dispatch_once 的话则 v 可能不等于 value_self，需要执行接下来的 _dispatch_gate_broadcast_slow 唤醒阻塞的线程。
 	if (likely((dispatch_lock)v == value_self)) return;
+	// 唤醒阻塞的线程
 	_dispatch_gate_broadcast_slow(&l->dgo_gate, (dispatch_lock)v);
 }
 

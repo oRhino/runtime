@@ -196,6 +196,7 @@
  * When compiling with a deployment target earlier than OS X 10.12 (iOS 10.0, 
  * tvOS 10.0, watchOS 3.0) the Swift compiler will only refer to this type at
  * runtime (using the ObjC runtime).
+ 下面是一组在 Swift 中使用 ObjC 的宏，为了在 10.12 之前的 SDK 上向 Swift 中的 ObjC 对象提供向后部署，可以将 OS_object 类标记为 OS_OBJECT_OBJC_RUNTIME_VISIBLE。使用早于 OS X 10.12（iOS 10.0，tvOS 10.0，watchOS 3.0）的部署目标进行编译时，Swift编译器将仅在运行时（使用ObjC运行时）引用此类型。
  */
 #define OS_OBJECT_OBJC_RUNTIME_VISIBLE __attribute__((objc_runtime_visible))
 #else
@@ -234,17 +235,22 @@ OS_OBJECT_DECL_BASE(object, NSObject);
 #define OS_OBJECT_USE_OBJC_RETAIN_RELEASE 0
 #endif
 
+//不同语言环境下的定义
 #if OS_OBJECT_SWIFT3
+//SWift 环境下
 #define OS_OBJECT_DECL_CLASS(name) \
 		OS_OBJECT_DECL_SUBCLASS_SWIFT(name, object)
 #elif OS_OBJECT_USE_OBJC
+// Objective-c 环境下
 #define OS_OBJECT_DECL_CLASS(name) \
 		OS_OBJECT_DECL(name)
 #else
+//：C/C++ 环境下
 #define OS_OBJECT_DECL_CLASS(name) \
 		typedef struct name##_s *name##_t
 #endif
 
+// 桥接转化，如 ARC 下 NSObject * 转化为 void *。
 #define OS_OBJECT_GLOBAL_OBJECT(type, object) ((OS_OBJECT_BRIDGE type)&(object))
 
 __BEGIN_DECLS
@@ -265,10 +271,12 @@ __BEGIN_DECLS
  * @result
  * The retained object.
  */
+//os_retain 增加 os_object 的引用计数。
 API_AVAILABLE(macos(10.10), ios(8.0))
 OS_EXPORT OS_SWIFT_UNAVAILABLE("Can't be used with ARC")
 void*
 os_retain(void *object);
+//// ObjC 下则是定义成一个宏，调用 retain 函数
 #if OS_OBJECT_USE_OBJC
 #undef os_retain
 #define os_retain(object) [object retain]
@@ -287,10 +295,12 @@ os_retain(void *object);
  * @param object
  * The object to release.
  */
+//os_release 减少 os_object 的引用计数
 API_AVAILABLE(macos(10.10), ios(8.0))
 OS_EXPORT
 void OS_SWIFT_UNAVAILABLE("Can't be used with ARC")
 os_release(void *object);
+//// ObjC 下则是定义成一个宏，调用 release 函数
 #if OS_OBJECT_USE_OBJC
 #undef os_release
 #define os_release(object) [object release]
