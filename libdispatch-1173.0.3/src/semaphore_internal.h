@@ -35,12 +35,12 @@ struct dispatch_semaphore_s {
 	DISPATCH_OBJECT_HEADER(semaphore);
 	long volatile dsema_value; //信号量的当前值
 	long dsema_orig; //信号量的初始值
-	_dispatch_sema4_t dsema_sema; 信号量的结构。
+	_dispatch_sema4_t dsema_sema; //不同平台的实际信号量
 };
 
 //展开如下:
 // struct dispatch_semaphore_s {
-//     struct dispatch_object_s _as_do[0];
+//   struct dispatch_object_s _as_do[0];
 //	 struct _os_object_s _as_os_obj[0];
 //
 //	 const struct dispatch_semaphore_vtable_s *do_vtable; /* must be pointer-sized */
@@ -88,10 +88,11 @@ struct dispatch_semaphore_s {
 #define DISPATCH_GROUP_GEN_MASK         0xffffffff00000000ULL
 #define DISPATCH_GROUP_VALUE_MASK       0x00000000fffffffcULL
 #define DISPATCH_GROUP_VALUE_INTERVAL   0x0000000000000004ULL
-#define DISPATCH_GROUP_VALUE_1          DISPATCH_GROUP_VALUE_MASK
-#define DISPATCH_GROUP_VALUE_MAX        DISPATCH_GROUP_VALUE_INTERVAL
-#define DISPATCH_GROUP_HAS_NOTIFS       0x0000000000000002ULL
-#define DISPATCH_GROUP_HAS_WAITERS      0x0000000000000001ULL
+#define DISPATCH_GROUP_VALUE_1          DISPATCH_GROUP_VALUE_MASK  ///可表示此时 dispatch_group 关联了一个 block
+#define DISPATCH_GROUP_VALUE_MAX        DISPATCH_GROUP_VALUE_INTERVAL  /// 可表示 dispatch_group 关联的 block 达到了最大值，正常情况时应小于此值
+#define DISPATCH_GROUP_HAS_NOTIFS       0x0000000000000002ULL // 表示dispatch_group是否有notify回调通知的掩码
+#define DISPATCH_GROUP_HAS_WAITERS      0x0000000000000001ULL // 对应dispatch_group_wait函数的使用，表示 dispatch_group 是否处于等待状态的掩码
+
 DISPATCH_CLASS_DECL(group, OBJECT);
 struct dispatch_group_s {
 	DISPATCH_OBJECT_HEADER(group); //一些公共成员<isa,ref_t,do_next...> 抽取成多个宏

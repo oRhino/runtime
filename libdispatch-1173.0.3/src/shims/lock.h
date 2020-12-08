@@ -188,6 +188,12 @@ _dispatch_lock_has_failed_trylock(dispatch_lock lock_value)
 
 #pragma mark - semaphores
 
+// 不同平台使用不同的
+// _dispatch_sema4_init 创建信号量
+// _dispatch_sema4_create_slow
+// _dispatch_sema4_is_created //判断信号量是否创建
+// MACH / POSIX / WIN32
+// semaphore_t / sem_t / HANDLE
 #if USE_MACH_SEM
 
 typedef semaphore_t _dispatch_sema4_t;
@@ -235,8 +241,8 @@ DISPATCH_ALWAYS_INLINE
 static inline void
 _dispatch_sema4_create(_dispatch_sema4_t *sema, int policy)
 {
-	//// #define _dispatch_sema4_is_created(sema)   (*(sema) != MACH_PORT_NULL)
-	//// 如果 sema 为 NULL，则调用 _dispatch_sema4_create_slow 为 sema 赋值
+	/// #define _dispatch_sema4_is_created(sema)   (*(sema) != MACH_PORT_NULL)
+	/// 如果 sema 为 NULL，则调用 _dispatch_sema4_create_slow 为 sema 赋值
 	if (!_dispatch_sema4_is_created(sema)) {
 		// 从缓存读取或者新建
 		_dispatch_sema4_create_slow(sema, policy);

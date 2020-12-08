@@ -101,11 +101,11 @@ _dispatch_sema4_create_slow(_dispatch_sema4_t *s4, int policy)
 		return;
 	}
 #endif
-    //// 新建 kern_return_t
+    /// 新建 kern_return_t
 	kern_return_t kr = semaphore_create(mach_task_self(), &tmp, policy, 0);
 	DISPATCH_SEMAPHORE_VERIFY_KR(kr);
 
-	//// 原子赋值
+	/// 原子赋值
 	if (!os_atomic_cmpxchg(s4, MACH_PORT_NULL, tmp, relaxed)) {
 		kr = semaphore_destroy(mach_task_self(), tmp);
 		DISPATCH_SEMAPHORE_VERIFY_KR(kr);
@@ -128,12 +128,12 @@ _dispatch_sema4_dispose_slow(_dispatch_sema4_t *sema, int policy)
 	kern_return_t kr = semaphore_destroy(mach_task_self(), sema_port);
 	DISPATCH_SEMAPHORE_VERIFY_KR(kr);
 }
-
+// MACH_SEM
 void
 _dispatch_sema4_signal(_dispatch_sema4_t *sema, long count)
 {
 	do {
-		//semaphore_signal能够唤醒一个在 semaphore_wait 中等待的线程。如果有多个等待线程，则根据线程优先级来唤醒。
+		//semaphore_signal能够唤醒一个在semaphore_wait中等待的线程。如果有多个等待线程，则根据线程优先级来唤醒。
 		kern_return_t kr = semaphore_signal(*sema);
 		DISPATCH_SEMAPHORE_VERIFY_KR(kr);
 	} while (--count);
@@ -145,7 +145,7 @@ _dispatch_sema4_wait(_dispatch_sema4_t *sema)
 {
 	kern_return_t kr;
 	do {
-		//调用了 mach 内核的信号量接口 semaphore_wait进行 wait 操作
+		//调用了mach内核的信号量接口semaphore_wait进行wait操作
 		kr = semaphore_wait(*sema);
 	} while (kr == KERN_ABORTED);
 	DISPATCH_SEMAPHORE_VERIFY_KR(kr);
@@ -182,8 +182,12 @@ _dispatch_sema4_timedwait(_dispatch_sema4_t *sema, dispatch_time_t timeout)
 void
 _dispatch_sema4_init(_dispatch_sema4_t *sema, int policy DISPATCH_UNUSED)
 {
+	//int sem_init(sem_t *sem, int pshared, unsigned int value);
+	//Posix信号量操作中的函数。sem_init() 初始化一个定位在 sem 的匿名信号量。
+	//value 参数指定信号量的初始值。
+	//pshared 参数指明信号量是由进程内线程共享，还是由进程之间共享。如果 pshared 的值为 0，那么信号量将被进程内的线程共享，并且应该放置在这个进程的所有线程都可见的地址上(如全局变量，或者堆上动态分配的变量)。
 	int rc = sem_init(sema, 0, 0);
-	DISPATCH_SEMAPHORE_VERIFY_RET(rc);
+	DISPATCH_SEMAPHORE_VERIFY_RET(rc); //宏 验证是否成功创建信号量
 }
 
 void
@@ -192,7 +196,7 @@ _dispatch_sema4_dispose_slow(_dispatch_sema4_t *sema, int policy DISPATCH_UNUSED
 	int rc = sem_destroy(sema);
 	DISPATCH_SEMAPHORE_VERIFY_RET(rc);
 }
-
+// POSIX_SEM
 void
 _dispatch_sema4_signal(_dispatch_sema4_t *sema, long count)
 {
@@ -229,6 +233,7 @@ _dispatch_sema4_timedwait(_dispatch_sema4_t *sema, dispatch_time_t timeout)
 	return false;
 }
 #elif USE_WIN32_SEM
+
 // rdar://problem/8428132
 static DWORD best_resolution = 1; // 1ms
 
@@ -292,7 +297,7 @@ _dispatch_sema4_dispose_slow(_dispatch_sema4_t *sema, int policy DISPATCH_UNUSED
 	CloseHandle(sema_handle);
 	*sema = 0;
 }
-
+// WIN32_SEM
 void
 _dispatch_sema4_signal(_dispatch_sema4_t *sema, long count)
 {

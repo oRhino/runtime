@@ -314,6 +314,7 @@ _dispatch_release_2(dispatch_object_t dou)
 	_os_object_release_internal_n_inline(dou._os_obj, 2);
 }
 
+//根据入参减少 GCD “对象” 的内部的引用计数。
 DISPATCH_ALWAYS_INLINE_NDEBUG
 static inline void
 _dispatch_release_n(dispatch_object_t dou, int n)
@@ -2464,21 +2465,27 @@ _dispatch_continuation_free(dispatch_continuation_t dc)
 	}
 }
 
+//dispatch_group_async 提交的异步任务执行时调用的函数
 DISPATCH_ALWAYS_INLINE
 static inline void
 _dispatch_continuation_with_group_invoke(dispatch_continuation_t dc)
 {
+	//dc->dc_data 正是上面_dispatch_continuation_group_async 函数中赋值的 dispatch_group
 	struct dispatch_object_s *dou = dc->dc_data;
 	unsigned long type = dx_type(dou);
 	if (type == DISPATCH_GROUP_TYPE) {
+		//函数执行dispatch_group_async 函数传递的 block，
+		//dispatch_group_leave((dispatch_group_t)dou) 出组操作，正对应了上面 _dispatch_continuation_group_async 函数中的 dispatch_group_enter(dg) 进组操作。
 		_dispatch_client_callout(dc->dc_ctxt, dc->dc_func);
 		_dispatch_trace_item_complete(dc);
+		//leave
 		dispatch_group_leave((dispatch_group_t)dou);
 	} else {
 		DISPATCH_INTERNAL_CRASH(dx_type(dou), "Unexpected object type");
 	}
 }
 
+//dispatch_continuation_t 被调用时执行的函数
 DISPATCH_ALWAYS_INLINE
 static inline void
 _dispatch_continuation_invoke_inline(dispatch_object_t dou,
@@ -2503,6 +2510,7 @@ _dispatch_continuation_invoke_inline(dispatch_object_t dou,
 			dc1 = NULL;
 		}
 		if (unlikely(dc_flags & DC_FLAG_GROUP_ASYNC)) {
+			//当dc->dc_flags包含DC_FLAG_GROUP_ASYNC时，执行的是 _dispatch_continuation_with_group_invoke函数
 			_dispatch_continuation_with_group_invoke(dc);
 		} else {
 			_dispatch_client_callout(dc->dc_ctxt, dc->dc_func);
@@ -2648,6 +2656,7 @@ _dispatch_continuation_init(dispatch_continuation_t dc,
 	return _dispatch_continuation_init_f(dc, dqu, ctxt, func, flags, dc_flags);
 }
 
+//把 GCD 任务封装成的 dc 提交到队列中异步执行。
 DISPATCH_ALWAYS_INLINE
 static inline void
 _dispatch_continuation_async(dispatch_queue_class_t dqu,
@@ -2660,7 +2669,11 @@ _dispatch_continuation_async(dispatch_queue_class_t dqu,
 #else
 	(void)dc_flags;
 #endif
+	//// 调用队列的 dq_push 函数，并示把任务放入到指定的队列中
 	return dx_push(dqu._dq, dc, qos);
+	// dx_push 是一个宏定义
+	// #define dx_push(x, y, z) dx_vtable(x)->dq_push(x, y, z)
+	// void (*const dq_push)(dispatch_queue_class_t, dispatch_object_t, dispatch_qos_t)
 }
 
 #endif // DISPATCH_PURE_C
