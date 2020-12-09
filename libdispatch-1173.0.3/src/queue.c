@@ -2649,20 +2649,26 @@ _dispatch_lane_create_with_target(const char *label, dispatch_queue_attr_t dqa,
 	dispatch_queue_attr_info_t dqai = _dispatch_queue_attr_to_info(dqa);
 
 	//
-	// Step 1: Normalize arguments (qos, overcommit, tq)
+	// Step 1: Normalize arguments (qos, overcommit, tq) 规范化参数
 	//
 
-	dispatch_qos_t qos = dqai.dqai_qos;
+	dispatch_qos_t qos = dqai.dqai_qos; //dqai_qos 表示线程优先级）
 #if !HAVE_PTHREAD_WORKQUEUE_QOS
 	if (qos == DISPATCH_QOS_USER_INTERACTIVE) {
+		//// 如果是 "用户交互" 这个最高优先级，则切到 "用户启动" 这个第二优先级
 		dqai.dqai_qos = qos = DISPATCH_QOS_USER_INITIATED;
 	}
 	if (qos == DISPATCH_QOS_MAINTENANCE) {
+		// 如果是 "QOS_CLASS_MAINTENANCE" 这个最低优先级，则切到 "后台线程" 这个倒数第二优先级
 		dqai.dqai_qos = qos = DISPATCH_QOS_BACKGROUND;
 	}
 #endif // !HAVE_PTHREAD_WORKQUEUE_QOS
 
+	//// 取出是否允许 "过量使用 超过物理上的核心数"
 	_dispatch_queue_attr_overcommit_t overcommit = dqai.dqai_overcommit;
+	// 如果 overcommit 不等于 "未指定 overcommit" 并且 tq 不为空
+	//（已知上面 dispatch_queue_create 函数调用默认入参 DISPATCH_TARGET_QUEUE_DEFAULT 是 NULL）
+
 	if (overcommit != _dispatch_queue_attr_overcommit_unspecified && tq) {
 		if (tq->do_targetq) {
 			DISPATCH_CLIENT_CRASH(tq, "Cannot specify both overcommit and "
@@ -2672,47 +2678,66 @@ _dispatch_lane_create_with_target(const char *label, dispatch_queue_attr_t dqa,
 
 	if (tq && dx_type(tq) == DISPATCH_QUEUE_GLOBAL_ROOT_TYPE) {
 		// Handle discrepancies between attr and target queue, attributes win
+		// 处理 attr 和目标队列之间的差异，以 attr 为主
+		
+		// 如果目标队列存在，且目标队列是全局根队列
 		if (overcommit == _dispatch_queue_attr_overcommit_unspecified) {
+			// 如果 overcommit 是未指定
 			if (tq->dq_priority & DISPATCH_PRIORITY_FLAG_OVERCOMMIT) {
+				// 如果目标队列的优先级是 DISPATCH_PRIORITY_FLAG_OVERCOMMIT，则把 overcommit 置为允许
 				overcommit = _dispatch_queue_attr_overcommit_enabled;
 			} else {
+				// 否则是不允许
 				overcommit = _dispatch_queue_attr_overcommit_disabled;
 			}
 		}
+		// 如果优先级未指定，则新创建的队列的优先级继承目标队列的优先级
 		if (qos == DISPATCH_QOS_UNSPECIFIED) {
 			qos = _dispatch_priority_qos(tq->dq_priority);
 		}
+		// tq 置 NULL
 		tq = NULL;
 	} else if (tq && !tq->do_targetq) {
 		// target is a pthread or runloop root queue, setting QoS or overcommit
 		// is disallowed
+		// target queue 是一个 pthread 或 runloop root queue， 设置 QoS 或 overcommit 是不允许的
 		if (overcommit != _dispatch_queue_attr_overcommit_unspecified) {
+			// 如果 tq 存在且 overcommit 不是未指定的话，则 crash
 			DISPATCH_CLIENT_CRASH(tq, "Cannot specify an overcommit attribute "
 					"and use this kind of target queue");
 		}
 	} else {
+		// tq 为 NULL 的情况
 		if (overcommit == _dispatch_queue_attr_overcommit_unspecified) {
-			// Serial queues default to overcommit!
+			// Serial queues default to overcommit! (串行队列默认为 overcommit)
+			// 根据上面的入参知道，串行队列的 dqai_concurrent 为 false，并发队列的 dqai_concurrent 为 true。
+			
+			// 当 dqai.dqai_concurrent 为 true，不允许 overcommit，否则允许 overcommit
 			overcommit = dqai.dqai_concurrent ?
 					_dispatch_queue_attr_overcommit_disabled :
 					_dispatch_queue_attr_overcommit_enabled;
 		}
 	}
+	// 当 tq 为 NULL，即入参目标队列为 DISPATCH_TARGET_QUEUE_DEFAULT（值是 NULL） 时，
+	// 根据 qos 和 overcommit 从 _dispatch_root_queues 全局的根队列数组中获取一个根队列作为新队列的目标队列
 	if (!tq) {
 		tq = _dispatch_get_root_queue(
 				qos == DISPATCH_QOS_UNSPECIFIED ? DISPATCH_QOS_DEFAULT : qos,
 				overcommit == _dispatch_queue_attr_overcommit_enabled)->_as_dq;
-		if (unlikely(!tq)) {
+		if (unlikely(!tq)) { // 如果未取得目标队列则 crash
 			DISPATCH_CLIENT_CRASH(qos, "Invalid queue attribute");
 		}
 	}
 
 	//
-	// Step 2: Initialize the queue
+	// Step 2: Initialize the queue 初始化队列）
 	//
 
+	// dispatch_queue_create 函数的调用中，legacy 默认传的是 true
 	if (legacy) {
 		// if any of these attributes is specified, use non legacy classes
+		// 如果指定了这些属性中的任何一个，请使用非旧类
+		// 活动状态（dqai_inactive）和自动释放频率（dqai_autorelease_frequency）
 		if (dqai.dqai_inactive || dqai.dqai_autorelease_frequency) {
 			legacy = false;
 		}
@@ -2721,12 +2746,13 @@ _dispatch_lane_create_with_target(const char *label, dispatch_queue_attr_t dqa,
 	const void *vtable;
 	dispatch_queue_flags_t dqf = legacy ? DQF_MUTABLE : 0;
 	if (dqai.dqai_concurrent) {
-		//并行
+		//// 并发队列 // _dispatch_queue_concurrent_vtable 包裹队列可进行的函数调用
 		vtable = DISPATCH_VTABLE(queue_concurrent);
 	} else {
-		//串行
+		//串行 // _dispatch_queue_serial_vtable 包裹队列可进行的函数调用
 		vtable = DISPATCH_VTABLE(queue_serial);
 	}
+	// 自动释放频率
 	switch (dqai.dqai_autorelease_frequency) {
 	case DISPATCH_AUTORELEASE_FREQUENCY_NEVER:
 		dqf |= DQF_AUTORELEASE_NEVER;
@@ -2735,33 +2761,54 @@ _dispatch_lane_create_with_target(const char *label, dispatch_queue_attr_t dqa,
 		dqf |= DQF_AUTORELEASE_ALWAYS;
 		break;
 	}
+	// 队列标签
 	if (label) {
+		// _dispatch_strdup_if_mutable 函数的功能：如果 label 入参是可变的字符串则申请空间并复制原始字符串进入，如果 label 入参是不可变字符串则直接返回原始值
 		const char *tmp = _dispatch_strdup_if_mutable(label);
 		if (tmp != label) {
+			// 新申请了空间
 			dqf |= DQF_LABEL_NEEDS_FREE;
+			// "新值" 赋给 label
 			label = tmp;
 		}
 	}
 
-	//创建对象
+	// 创建对象
+	// void *_dispatch_object_alloc(const void *vtable, size_t size) 函数未找到其定义，只在 object_internal.h 中看到其声明。
+	// dispatch_lane_s 是 dispatch_queue_s 的子类。
+	// dq 是一个指向 dispatch_lane_s 结构体的指针
+
 	dispatch_lane_t dq = _dispatch_object_alloc(vtable,
 			sizeof(struct dispatch_lane_s));
+	// 当 dqai.dqai_concurrent 为真时入参为 DISPATCH_QUEUE_WIDTH_MAX（4094）否则是 1
+	// 当 dqai.dqai_inactive 为真时表示非活动状态，否则为活动状态
+	// #define DISPATCH_QUEUE_ROLE_INNER            0x0000000000000000ull
+	// #define DISPATCH_QUEUE_INACTIVE              0x0180000000000000ull
+	// 初始化 dq
 	_dispatch_queue_init(dq, dqf, dqai.dqai_concurrent ?
 			DISPATCH_QUEUE_WIDTH_MAX : 1, DISPATCH_QUEUE_ROLE_INNER |
 			(dqai.dqai_inactive ? DISPATCH_QUEUE_INACTIVE : 0));
 
+	// 队列签名
 	dq->dq_label = label;
+	// 优先级
 	dq->dq_priority = _dispatch_priority_make((dispatch_qos_t)dqai.dqai_qos,
 			dqai.dqai_relpri);
+	// overcommit
 	if (overcommit == _dispatch_queue_attr_overcommit_enabled) {
 		dq->dq_priority |= DISPATCH_PRIORITY_FLAG_OVERCOMMIT;
 	}
+	// 如果是非活动状态
 	if (!dqai.dqai_inactive) {
+		// 新队列的优先级继承自目标队列优先级
 		_dispatch_queue_priority_inherit_from_target(dq, tq);
 		_dispatch_lane_inherit_wlh_from_target(dq, tq);
 	}
+	// 目标队列的内部引用计数加 1（原子操作）
 	_dispatch_retain(tq);
+	// 设置新队列的目标队列
 	dq->do_targetq = tq;
+	// DEBUG 时的打印函数
 	_dispatch_object_debug(dq, "%s", __func__);
 	return _dispatch_trace_queue_create(dq)._dq;
 }
@@ -2772,11 +2819,13 @@ dispatch_queue_create_with_target(const char *label, dispatch_queue_attr_t dqa,
 {
 	return _dispatch_lane_create_with_target(label, dqa, tq, false);
 }
+
 #pragma 创建队列
 dispatch_queue_t
 dispatch_queue_create(const char *label, dispatch_queue_attr_t attr)
 {
-	// null true
+	// label 参数是要附加到队列的自定义的字符串标签
+	// attr 参数是预定义属性，DISPATCH_QUEUE_SERIAL、DISPATCH_QUEUE_CONCURRENT 或调用 dispatch_queue_attr_make_with_* 函数的自定义创建的 dispatch_queue_attr_t 结构体实例。
 	return _dispatch_lane_create_with_target(label, attr,
 			DISPATCH_TARGET_QUEUE_DEFAULT, true);
 }

@@ -73,6 +73,7 @@ typedef unsigned long pthread_priority_t;
 typedef uint32_t dispatch_qos_t;
 typedef uint32_t dispatch_priority_t;
 
+//优先级范围
 #define DISPATCH_QOS_UNSPECIFIED        ((dispatch_qos_t)0)
 #define DISPATCH_QOS_MAINTENANCE        ((dispatch_qos_t)1)
 #define DISPATCH_QOS_BACKGROUND         ((dispatch_qos_t)2)

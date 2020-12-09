@@ -629,6 +629,7 @@ typedef struct dispatch_lane_s {
 	/* 32bit hole on LP64 */
 } DISPATCH_ATOMIC64_ALIGN *dispatch_lane_t;
 
+
 // Cache aligned type for static queues (main queue, manager)
 struct dispatch_queue_static_s {
 	struct dispatch_lane_s _as_dl[0]; \
@@ -916,6 +917,7 @@ struct dispatch_queue_attr_s {
 	OS_OBJECT_STRUCT_HEADER(dispatch_queue_attr);
 };
 
+//结构体位域
 typedef struct dispatch_queue_attr_info_s {
 	dispatch_qos_t dqai_qos : 8;
 	int      dqai_relpri : 8;

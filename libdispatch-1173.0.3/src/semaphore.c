@@ -556,12 +556,6 @@ _dispatch_group_notify(dispatch_group_t dg, dispatch_queue_t dq,
 		// 直到 old_state == 0 时跳出循环执行 _dispatch_group_wake 函数唤醒执行 notify 链表中的回调通知，
 		// 即对应我们上文中的 dispatch_group_leave 函数中 dg_bits 的值回到 0 表示 dispatch_group 中关联的 block 都执行完了。
 		
-		// 大概逻辑是这样，这里不再拆开宏定义分析了，具体拆开如下面的 os_atomic_rmw_loop2o 宏分析，
-		// 实在太杀时间了，低头一小时，抬头一小时...😭😭
-		
-		// 只要记得这里是用一个 do while 循环等待，每次循环以原子方式读取状态值（dg_bits），
-		// 直到 0 状态，去执行 _dispatch_group_wake 唤醒函数把 notify 链表中的函数提交到指定的队列异步执行就好了！⛽️⛽️
-
 		os_atomic_rmw_loop2o(dg, dg_state, old_state, new_state, release, {
 			
 			// #define DISPATCH_GROUP_HAS_NOTIFS   0x0000000000000002ULL

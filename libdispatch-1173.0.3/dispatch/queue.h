@@ -603,6 +603,7 @@ DISPATCH_INLINE DISPATCH_ALWAYS_INLINE DISPATCH_CONST DISPATCH_NOTHROW
 dispatch_queue_main_t
 dispatch_get_main_queue(void)
 {
+	//_dispatch_main_q
 	return DISPATCH_GLOBAL_OBJECT(dispatch_queue_main_t, _dispatch_main_q);
 }
 
@@ -700,6 +701,7 @@ DISPATCH_DECL(dispatch_queue_attr);
  *
  * See dispatch_queue_serial_t.
  */
+//串行队列 NULL
 #define DISPATCH_QUEUE_SERIAL NULL
 
 /*!
@@ -724,6 +726,7 @@ DISPATCH_DECL(dispatch_queue_attr);
  *
  * See dispatch_queue_concurrent_t.
  */
+// DISPATCH_QUEUE_CONCURRENT 宏定义是把全局变量 _dispatch_queue_attr_concurrent 强制转化为了 dispatch_queue_attr_t 类型的变量。
 #define DISPATCH_QUEUE_CONCURRENT \
 		DISPATCH_GLOBAL_OBJECT(dispatch_queue_attr_t, \
 		_dispatch_queue_attr_concurrent)

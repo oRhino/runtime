@@ -140,6 +140,7 @@ _dispatch_trace_client_callout2(void *ctxt, size_t i, void (*f)(void *, size_t))
 
 #if DISPATCH_USE_DTRACE_INTROSPECTION || DISPATCH_INTROSPECTION
 
+//创建根队列/主队列
 DISPATCH_ALWAYS_INLINE
 static inline dispatch_queue_class_t
 _dispatch_trace_queue_create(dispatch_queue_class_t dqu)

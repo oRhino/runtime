@@ -232,22 +232,23 @@ const struct dispatch_tsd_indexes_s dispatch_tsd_indexes = {
 
 // 6618342 Contact the team that owns the Instrument DTrace probe before
 //         renaming this symbol
+//主队列
 struct dispatch_queue_static_s _dispatch_main_q = {
 	DISPATCH_GLOBAL_OBJECT_HEADER(queue_main),
 #if !DISPATCH_USE_RESOLVERS
-	.do_targetq = _dispatch_get_default_queue(true),
+	.do_targetq = _dispatch_get_default_queue(true), //目标队列
 #endif
 	.dq_state = DISPATCH_QUEUE_STATE_INIT_VALUE(1) |
 			DISPATCH_QUEUE_ROLE_BASE_ANON,
-	.dq_label = "com.apple.main-thread",
-	.dq_atomic_flags = DQF_THREAD_BOUND | DQF_WIDTH(1),
-	.dq_serialnum = 1,
+	.dq_label = "com.apple.main-thread", //队列名
+	.dq_atomic_flags = DQF_THREAD_BOUND | DQF_WIDTH(1), //线程绑定|最大并发量1,串行队列
+	.dq_serialnum = 1, //序列号
 };
 
 #if DISPATCH_USE_MGR_THREAD && DISPATCH_USE_PTHREAD_ROOT_QUEUES
 static struct dispatch_pthread_root_queue_context_s
 _dispatch_mgr_root_queue_pthread_context;
-
+//全局队列
 struct dispatch_queue_global_s _dispatch_mgr_root_queue = {
 	DISPATCH_GLOBAL_OBJECT_HEADER(queue_global),
 	.dq_state = DISPATCH_ROOT_QUEUE_STATE_INIT_VALUE,
@@ -289,6 +290,7 @@ static struct dispatch_pthread_root_queue_context_s
 
 // 6618342 Contact the team that owns the Instrument DTrace probe before
 //         renaming this symbol
+//根队列数组
 struct dispatch_queue_global_s _dispatch_root_queues[] = {
 #define _DISPATCH_ROOT_QUEUE_IDX(n, flags) \
 		((flags & DISPATCH_PRIORITY_FLAG_OVERCOMMIT) ? \
@@ -359,7 +361,7 @@ struct dispatch_queue_global_s _dispatch_root_queues[] = {
 unsigned long volatile _dispatch_queue_serial_numbers =
 		DISPATCH_QUEUE_SERIAL_NUMBER_INIT;
 
-
+//获取全局队列
 dispatch_queue_global_t
 dispatch_get_global_queue(long priority, unsigned long flags)
 {
@@ -380,6 +382,7 @@ dispatch_get_global_queue(long priority, unsigned long flags)
 	if (qos == DISPATCH_QOS_UNSPECIFIED) {
 		return DISPATCH_BAD_INPUT;
 	}
+	//封装调用_dispatch_get_root_queue函数
 	return _dispatch_get_root_queue(qos, flags & DISPATCH_QUEUE_OVERCOMMIT);
 }
 
@@ -415,20 +418,25 @@ extern struct dispatch_queue_attr_s _dispatch_queue_attr_concurrent
 	__attribute__((__alias__("_dispatch_queue_attrs")));
 #endif
 
+//创建队列描述属性
 dispatch_queue_attr_info_t
 _dispatch_queue_attr_to_info(dispatch_queue_attr_t dqa)
 {
 	dispatch_queue_attr_info_t dqai = { };
+	//1.如果dqa是DISPATCH_QUEUE_SERIAL（值是 NULL）作为入参传入的话，会直接返回一个空的 dispatch_queue_attr_info_t 结构体实例，（dispatch_queue_attr_info_t dqai = { };）。
 
 	if (!dqa) return dqai;
 
 #if DISPATCH_VARIANT_STATIC
+	//2.如果dqa是 DISPATCH_QUEUE_CONCURRENT（值是全局变量 _dispatch_queue_attr_concurrent）作为入参传入的话，会返回一个 dqai_concurrent 值是true的dispatch_queue_attr_info_t结构体实例，（dqai_concurrent 为 true 表示是并发队列）。
+
 	if (dqa == &_dispatch_queue_attr_concurrent) {
 		dqai.dqai_concurrent = true;
 		return dqai;
 	}
 #endif
 
+	//3.传入自定义的 dispatch_queue_attr_t 时，则会进行取模和取商运算为 dispatch_queue_attr_info_t 结构体实例的每个成员变量赋值后返回该 dispatch_queue_attr_info_t 结构体实例。
 	if (dqa < _dispatch_queue_attrs ||
 			dqa >= &_dispatch_queue_attrs[DISPATCH_QUEUE_ATTR_COUNT]) {
 		DISPATCH_CLIENT_CRASH(dqa->do_vtable, "Invalid queue attribute");

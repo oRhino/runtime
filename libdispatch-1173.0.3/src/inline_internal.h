@@ -1918,10 +1918,12 @@ _dispatch_is_in_root_queues_array(dispatch_queue_class_t dqu)
 			(dqu._dgq < _dispatch_root_queues + _DISPATCH_ROOT_QUEUE_IDX_COUNT);
 }
 
+//带有overcommit标记的队列会在任务提交时新创建一个线程处理它
 DISPATCH_ALWAYS_INLINE DISPATCH_CONST
 static inline dispatch_queue_global_t
 _dispatch_get_root_queue(dispatch_qos_t qos, bool overcommit)
 {
+	//判断优先级范围是否正常
 	if (unlikely(qos < DISPATCH_QOS_MIN || qos > DISPATCH_QOS_MAX)) {
 		DISPATCH_CLIENT_CRASH(qos, "Corrupted priority");
 	}
