@@ -1693,6 +1693,7 @@ static char *copySwiftV1MangledName(const char *string, bool isProtocol = false)
 
 // This is a misnomer: gdb_objc_realized_classes is actually a list of 
 // named classes not in the dyld shared cache, whether realized or not.
+///这是一个误称：gdb_objc_realized_classes 表实际上存储的是不在 dyld 共享缓存里面的命名类，无论这些类是否实现
 NXMapTable *gdb_objc_realized_classes;  // exported for debuggers in objc-gdb.h
 uintptr_t objc_debug_realized_class_generation_count;
 
@@ -3459,19 +3460,25 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
     runtimeLock.assertLocked();
 
+    /// 抽取的for循环里面的变量表达式
 #define EACH_HEADER \
     hIndex = 0;         \
     hIndex < hCount && (hi = hList[hIndex]); \
     hIndex++
-   //是否是第一次加载
+    
+    
+   /// 是否是第一次加载
     if (!doneOnce) {
         doneOnce = YES;
         launchTime = YES;
 
 #if SUPPORT_NONPOINTER_ISA
+        //判断当前是否支持开启内存优化的 isa,如果支持，则在某些条件下需要禁用这个优化
         // Disable non-pointer isa under some conditions.
 
 # if SUPPORT_INDEXED_ISA
+        /// 通过宏 SUPPORT_INDEXED_ISA 判断当前是否是将类存储在 isa 作为类表索引
+        /// 如果是的话，再递归遍历所有的 Mach-O 的头部，并且判断如果是 Swift 3.0 之前的代码，就需要禁用对 isa 的内存优化
         // Disable nonpointer isa if any image contains old Swift code
         for (EACH_HEADER) {
             if (hi->info()->containsSwift()  &&
@@ -3489,7 +3496,9 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 # endif
 
 # if TARGET_OS_OSX
+        /// 判断是否是 macOS 执行环境
         // Disable non-pointer isa if the app is too old
+        /// 判断 macOS 的系统版本，如果小于 10.11 则说明 app 太陈旧了，需要禁用掉 non-pointer isa
         // (linked before OS X 10.11)
         if (dyld_get_program_sdk_version() < DYLD_MACOSX_VERSION_10_11) {
             DisableNonpointerIsa = true;
@@ -3502,6 +3511,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
         // Disable non-pointer isa if the app has a __DATA,__objc_rawisa section
         // New apps that load old extensions may need this.
+        /// 遍历所有的 Mach-O 的头部，判断如果有 __DATA__,__objc_rawisa 段的存在，则禁用掉 non-pointer isa ，因为很多新的 app 加载老的扩展的时候会需要这样的判断操作。
         for (EACH_HEADER) {
             if (hi->mhdr()->filetype != MH_EXECUTE) continue;
             unsigned long size;
@@ -3517,7 +3527,8 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 # endif
 
 #endif
-
+        
+        ///根据上面按条件确认是否禁用非指针型isa
         if (DisableTaggedPointers) {
             disableTaggedPointers();
         }
@@ -3531,7 +3542,8 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
         // namedClasses
         // Preoptimized classes don't go in this table.
         // 4/3 is NXMapTable's load factor
-        //实例化存储类的哈希表,并且根据当前类数量做动态扩容.
+        // 实例化存储类的哈希表,并且根据当前类数量做动态扩容.
+        /// 预先优化过的类不会加入到 gdb_objc_realized_classes 这个哈希表中来， gdb_objc_realized_classes 哈希表的装载因子为 0.75，这是一个经过验证的效率很高的扩容临界值。
         int namedClassesSize = 
             (isPreoptimized() ? unoptimizedTotalClasses : totalClasses) * 4 / 3;
         gdb_objc_realized_classes =
@@ -3563,24 +3575,28 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
     ts.log("IMAGE TIMES: fix up selector references");
 
-    //错误类处理，通过readClass读取出来类的信息
+    ///  错误类处理，通过readClass读取出来类的信息
     // Discover classes. Fix up unresolved future classes. Mark bundle classes.
+    /// 发现类。修正未解析的 future 类，标记 bundle 类。
     bool hasDyldRoots = dyld_shared_cache_some_image_overridden();
 
     for (EACH_HEADER) {
+        ///通过 mustReadClasses 来判断哪些条件可以跳过读取类这一步骤
         if (! mustReadClasses(hi, hasDyldRoots)) {
             // Image is sufficiently optimized that we need not call readClass()
             continue;
         }
-
+        ///获取到所有的类
         classref_t const *classlist = _getObjc2ClassList(hi, &count);
 
-        bool headerIsBundle = hi->isBundle();
-        bool headerIsPreoptimized = hi->hasPreoptimizedClasses();
+        bool headerIsBundle = hi->isBundle(); ///是否是 Bundle
+        bool headerIsPreoptimized = hi->hasPreoptimizedClasses(); ///是否开启了 预优化
 
         for (i = 0; i < count; i++) {
             Class cls = (Class)classlist[i];
+            /// readClass读取类信息
             Class newCls = readClass(cls, headerIsBundle, headerIsPreoptimized);
+            /// 判断如果不相等并且 readClass 结果不为空，则需要重新为类开辟内存
 
             if (newCls != cls  &&  newCls) {
                 // Class was moved but not deleted. Currently this occurs 
@@ -3600,9 +3616,14 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
     // Fix up remapped classes
     // Class list and nonlazy class list remain unremapped.
     // Class refs and super refs are remapped for message dispatching.
+    // 修复 重映射类
+    //  类表和非懒加载类表没有被重映射 (也就是 _objc_classlist)
+    //  由于消息转发，类引用和父类引用会被重映射 (也就是 _objc_classrefs)
     
+    //通过 noClassesRemapped 方法判断是否有类引用(_objc_classrefs)需要进行重映射
     if (!noClassesRemapped()) {
         for (EACH_HEADER) {
+            // 通过 _getObjc2ClassRefs 和 _getObjc2SuperRefs 取出当前遍历到的 Mach-O 的类引用和父类引用，然后调用 remapClassRef 进行重映射
             Class *classrefs = _getObjc2ClassRefs(hi, &count);
             for (i = 0; i < count; i++) {
                 remapClassRef(&classrefs[i]);

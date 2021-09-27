@@ -464,7 +464,7 @@ map_images_nolock(unsigned mhCount, const char * const mhPaths[],
     // This function is called before ordinary library initializers. 
     // fixme defer initialization until an objc-using image is found?
     if (firstTime) {
-        preopt_init();
+        preopt_init();//optimized初始化,加载共享缓存
     }
 
     if (PrintImages) {
@@ -473,11 +473,12 @@ map_images_nolock(unsigned mhCount, const char * const mhPaths[],
 
 
     // Find all images with Objective-C metadata.
+    /// 查找所有oc元数据的镜像
     hCount = 0;
 
     // Count classes. Size various table based on the total.
-    int totalClasses = 0;
-    int unoptimizedTotalClasses = 0;
+    int totalClasses = 0; /// 所有类的个数
+    int unoptimizedTotalClasses = 0; /// 未优化的类总数
     {
         uint32_t i = mhCount;
         while (i--) {
@@ -538,8 +539,8 @@ map_images_nolock(unsigned mhCount, const char * const mhPaths[],
     // executable does not contain Objective-C code but Objective-C 
     // is dynamically loaded later.
     if (firstTime) {
-        sel_init(selrefCount);
-        arr_init();
+        sel_init(selrefCount);  /// 实例化selector表并注册
+        arr_init();   /// 初始化自动释放池,sidetable,关联对象管理者
 
 #if SUPPORT_GC_COMPAT
         // Reject any GC images linked to the main executable.

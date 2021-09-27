@@ -70,18 +70,23 @@
 // class is unresolved future class
 #define RW_FUTURE             (1<<30)
 // class is initialized
+///类是否初始化
 #define RW_INITIALIZED        (1<<29)
 // class is initializing
+///类正在初始化
 #define RW_INITIALIZING       (1<<28)
 // class_rw_t->ro is heap copy of class_ro_t
 #define RW_COPIED_RO          (1<<27)
 // class allocated but not yet registered
+///类已分配内存但没注册
 #define RW_CONSTRUCTING       (1<<26)
 // class allocated and registered
+///类分配内存也注册了
 #define RW_CONSTRUCTED        (1<<25)
 // available for use; was RW_FINALIZE_ON_MAIN_THREAD
 // #define RW_24 (1<<24)
 // class +load has been called
+///类的load方法是否调用
 #define RW_LOADED             (1<<23)
 #if !SUPPORT_NONPOINTER_ISA
 // class instances may have associative references
